@@ -1,0 +1,31 @@
+{
+  "name": "copy-of-playable1",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "dev:vite": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.30.0",
+    "@stripe/stripe-js": "^2.4.0",
+    "@supabase/supabase-js": "^2.39.7",
+    "lucide-react": "^0.554.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^2.5.1",
+    "@types/node": "^22.14.0",
+    "@types/uuid": "^9.0.8",
+    "@vitejs/plugin-react": "^5.0.0",
+    "netlify-cli": "^23.12.1",
+    "stripe": "^14.17.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0;overflow:hidden;background:#111">
+<canvas id="c"></canvas>
+<script>
+const c=document.getElementById('c');
+const x=c.getContext('2d');
+c.width=window.innerWidth;
+c.height=window.innerHeight;
+
+// Game state
+let p1={x:50,y:c.height/2,w:15,h:80,s:0}; // Player paddle
+let p2={x:c.width-65,y:c.height/2,w:15,h:80,s:5}; // AI paddle
+let balls=[{x:c.width/2,y:c.height/2,vx:5,vy:3,r:8}];
+let sc1=0,sc2=0,go=false;
+
+window.onresize=()=>{
+  c.width=window.innerWidth;
+  c.height=window.innerHeight;
+  p1.y=c.height/2;p2.x=c.width-65;p2.y=c.height/2;
+};
+
+document.onmousemove=e=>p1.y=e.clientY;
+
+// Send screenshot after 2 seconds
+setTimeout(() => {
+  window.parent.postMessage({
+    type: 'SCREENSHOT',
+    image: c.toDataURL('image/jpeg', 0.5)
+  }, '*')
+}, 2000);
+
+function loop(){
+  if(go)return;
+  requestAnimationFrame(loop);
+
+  // Clear with fade effect
+  x.fillStyle='rgba(17,17,17,0.2)';
+  x.fillRect(0,0,c.width,c.height);
+
+  // Draw center line
+  x.strokeStyle='rgba(0,255,255,0.2)';
+  x.lineWidth=2;
+  x.setLineDash([10,10]);
+  x.beginPath();
+  x.moveTo(c.width/2,0);
+  x.lineTo(c.width/2,c.height);
+  x.stroke();
+  x.setLineDash([]);
+
+  // Draw paddles with glow
+  x.shadowBlur=20;
+  x.shadowColor='#0ff';
+  x.fillStyle='#0ff';
+  x.fillRect(p1.x,p1.y-p1.h/2,p1.w,p1.h);
+  x.shadowColor='#f0f';
+  x.fillStyle='#f0f';
+  x.fillRect(p2.x,p2.y-p2.h/2,p2.w,p2.h);
+  x.shadowBlur=0;
+
+  // Update and draw balls
+  balls.forEach((b,i)=>{
+    b.x+=b.vx;
+    b.y+=b.vy;
+
+    // Top/bottom wall collision - BALL SPLITS!
+    if(b.y-b.r<0||b.y+b.r>c.height){
+      b.vy*=-1;
+      b.y=b.y<c.height/2?b.r:c.height-b.r;
+
+      // Split the ball into 2 new balls
+      if(balls.length<8){
+        balls.push({
+          x:b.x,
+          y:b.y,
+          vx:b.vx*0.8,
+          vy:-b.vy*1.2,
+          r:b.r*0.9
+        });
+        balls.push({
+          x:b.x,
+          y:b.y,
+          vx:b.vx*1.2,
+          vy:-b.vy*0.8,
+          r:b.r*0.9
+        });
+        balls.splice(i,1);
+        return;
+      }
+    }
+
+    // Paddle collision
+    if(b.x-b.r<p1.x+p1.w&&b.y>p1.y-p1.h/2&&b.y<p1.y+p1.h/2){
+      b.vx=Math.abs(b.vx);
+      b.x=p1.x+p1.w+b.r;
+    }
+    if(b.x+b.r>p2.x&&b.y>p2.y-p2.h/2&&b.y<p2.y+p2.h/2){
+      b.vx=-Math.abs(b.vx);
+      b.x=p2.x-b.r;
+    }
+
+    // Score detection
+    if(b.x<0){
+      sc2++;
+      balls.splice(i,1);
+      if(balls.length===0){
+        balls=[{x:c.width/2,y:c.height/2,vx:-5,vy:3,r:8}];
+      }
+    }
+    if(b.x>c.width){
+      sc1++;
+      balls.splice(i,1);
+      if(balls.length===0){
+        balls=[{x:c.width/2,y:c.height/2,vx:5,vy:-3,r:8}];
+      }
+    }
+
+    // Draw ball with glow
+    x.shadowBlur=15;
+    x.shadowColor='#fff';
+    x.fillStyle='#fff';
+    x.beginPath();
+    x.arc(b.x,b.y,b.r,0,Math.PI*2);
+    x.fill();
+  });
+  x.shadowBlur=0;
+
+  // AI movement
+  if(balls.length>0){
+    let target=balls[0];
+    if(p2.y<target.y)p2.y+=p2.s;
+    if(p2.y>target.y)p2.y-=p2.s;
+  }
+
+  // Draw scores
+  x.fillStyle='rgba(0,255,255,0.7)';
+  x.font='40px monospace';
+  x.fillText(sc1,c.width/2-60,50);
+  x.fillStyle='rgba(255,0,255,0.7)';
+  x.fillText(sc2,c.width/2+40,50);
+
+  // Check game over
+  if(sc1>=5||sc2>=5){
+    go=true;
+    window.parent.postMessage({
+      type:'GAME_OVER',
+      score:sc1
+    },'*');
+    x.fillStyle='#fff';
+    x.font='50px monospace';
+    const msg=sc1>=5?'YOU WIN!':'AI WINS!';
+    x.fillText(msg,c.width/2-150,c.height/2);
+  }
+}
+loop();
+</script>
+</body>
+</html>
