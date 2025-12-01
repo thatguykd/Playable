@@ -25,17 +25,22 @@ import {
     logout,
     COST_NEW_GAME,
     COST_ITERATION,
-    LIMIT_FREE_GAMES
+    LIMIT_FREE_GAMES,
+    getUserPreferences,
+    saveUserPreferences,
+    getActiveStudioSession,
+    saveStudioSession,
+    deactivateStudioSession,
+    getPlayHistory,
+    recordGamePlay
 } from './services/storageService';
 import { supabase } from './services/supabaseClient';
 import { LayoutGrid, PenTool, Gamepad2, Bookmark, LogIn, Coins, ChevronUp, Settings, Layers, MonitorPlay } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [showLanding, setShowLanding] = useState(() => {
-    // Check if user has previously entered the app
-    const hasEnteredApp = localStorage.getItem('hasEnteredApp');
-    return hasEnteredApp !== 'true';
-  });
+  // Always show landing page initially for non-logged-in users
+  // Will be hidden in useEffect if user is logged in
+  const [showLanding, setShowLanding] = useState(true);
   const [view, setView] = useState<ViewMode>('feed');
   
   // Auth State
@@ -71,19 +76,90 @@ const App: React.FC = () => {
   // INITIALIZATION
   useEffect(() => {
     const initializeApp = async () => {
-      // Load published games
-      const games = await getPublishedGames();
-      setPublishedGames(games);
+      try {
+        // Load published games
+        const games = await getPublishedGames();
+        setPublishedGames(games);
 
-      // Check for existing user session with retry logic
-      const currentUser = await getCurrentUserWithRetry();
-      if (currentUser) {
-        setUser(currentUser);
-        // Auto-hide landing page if user is logged in
-        localStorage.setItem('hasEnteredApp', 'true');
-        setShowLanding(false);
-        const savedIds = await getSavedGameIds();
-        setSavedGameIds(savedIds);
+        // Check for existing user session with retry logic
+        const currentUser = await getCurrentUserWithRetry();
+        console.log('🔍 Current user check:', currentUser ? 'User logged in' : 'No user');
+        if (currentUser) {
+          setUser(currentUser);
+          // If user is logged in, hide landing page and enter app
+          console.log('✅ User is logged in - hiding landing page');
+          setShowLanding(false);
+          const savedIds = await getSavedGameIds();
+          setSavedGameIds(savedIds);
+
+          // RESTORE USER PREFERENCES AND STATE
+          try {
+            const prefs = await getUserPreferences();
+            if (prefs) {
+              // Restore view (but don't restore 'settings' view)
+              if (prefs.currentView && prefs.currentView !== 'settings') {
+                setView(prefs.currentView as ViewMode);
+              }
+
+              // Restore active game if in gaming view
+              if (prefs.activeGameId && prefs.currentView === 'gaming') {
+                const game = games.find(g => g.id === prefs.activeGameId);
+                if (game) {
+                  const leaderboardData = await getLeaderboard(game.id);
+                  setActiveGame(game);
+                  setLeaderboard(leaderboardData);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error loading user preferences:', error);
+            // Continue without preferences - not critical for app functionality
+          }
+
+          // Load play history for recently played games
+          try {
+            const playHistory = await getPlayHistory(6);
+            setRecentlyPlayed(playHistory);
+          } catch (error) {
+            console.error('Error loading play history:', error);
+            // Continue without play history - not critical for app functionality
+          }
+
+          // RESTORE STUDIO SESSION if active
+          try {
+            const activeSession = await getActiveStudioSession();
+            if (activeSession && activeSession.isActive) {
+              setSessionId(activeSession.sessionId);
+              setMessages(activeSession.messages || []);
+              if (activeSession.currentGameHtml) {
+                setGameData({
+                  html: activeSession.currentGameHtml,
+                  version: activeSession.currentVersion,
+                });
+                setStatus(GameStatus.PLAYING);
+              }
+              if (activeSession.suggestedTitle) setSuggestedTitle(activeSession.suggestedTitle);
+              if (activeSession.suggestedDescription) setSuggestedDesc(activeSession.suggestedDescription);
+
+              // Fetch game versions for this session - pass sessionId explicitly
+              setTimeout(async () => {
+                await fetchGameVersions(activeSession.sessionId);
+              }, 500);
+
+              // If there was an active session and user wasn't already in studio, switch to studio
+              const prefs = await getUserPreferences();
+              if (prefs?.currentView !== 'studio' && activeSession.messages.length > 0) {
+                setView('studio');
+              }
+            }
+          } catch (error) {
+            console.error('Error loading studio session:', error);
+            // Continue without studio session - not critical for app functionality
+          }
+        }
+      } catch (error) {
+        console.error('Error during app initialization:', error);
+        // App can still function even if initialization fails
       }
     };
 
@@ -100,6 +176,10 @@ const App: React.FC = () => {
           setUser(currentUser);
           const savedIds = await getSavedGameIds();
           setSavedGameIds(savedIds);
+
+          // Load play history
+          const playHistory = await getPlayHistory(6);
+          setRecentlyPlayed(playHistory);
         } else {
           console.error('Failed to fetch user profile after authentication');
         }
@@ -107,6 +187,7 @@ const App: React.FC = () => {
         // User logged out
         setUser(null);
         setSavedGameIds([]);
+        setRecentlyPlayed([]);
       }
     });
 
@@ -125,6 +206,44 @@ const App: React.FC = () => {
     };
     loadSavedGames();
   }, [view, savedGameIds]);
+
+  // AUTO-SAVE STUDIO SESSION
+  useEffect(() => {
+    // Only auto-save if user is logged in and there's a session
+    if (!user || !sessionId || messages.length === 0) return;
+
+    const saveSession = async () => {
+      await saveStudioSession({
+        sessionId,
+        messages,
+        currentGameHtml: gameData?.html,
+        currentVersion: gameData?.version,
+        suggestedTitle,
+        suggestedDescription: suggestedDesc,
+        isActive: view === 'studio', // Mark as active only if in studio view
+      });
+    };
+
+    // Debounce the save by 2 seconds
+    const timeoutId = setTimeout(saveSession, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [user, sessionId, messages, gameData, suggestedTitle, suggestedDesc, view]);
+
+  // SAVE VIEW PREFERENCE
+  useEffect(() => {
+    if (!user) return;
+
+    const saveView = async () => {
+      await saveUserPreferences({
+        currentView: view,
+        activeGameId: view === 'gaming' ? activeGame?.id : undefined,
+      });
+    };
+
+    // Debounce to avoid excessive saves
+    const timeoutId = setTimeout(saveView, 500);
+    return () => clearTimeout(timeoutId);
+  }, [user, view, activeGame]);
 
   // Handle Score Messages
   useEffect(() => {
@@ -146,8 +265,7 @@ const App: React.FC = () => {
       setUser(null);
       setSavedGameIds([]);
       setView('feed');
-      // Clear the flag so landing page shows on next visit
-      localStorage.removeItem('hasEnteredApp');
+      // Show landing page after logout
       setShowLanding(true);
   };
 
@@ -158,7 +276,6 @@ const App: React.FC = () => {
       setSavedGameIds(savedIds);
       // If user logs in from landing page, enter the app
       if (showLanding) {
-          localStorage.setItem('hasEnteredApp', 'true');
           setShowLanding(false);
       }
   };
@@ -224,9 +341,10 @@ const App: React.FC = () => {
         if (isNewGame && !sessionId) {
           setSessionId(currentSessionId);
         }
-        saveGameVersion(response.html, newVersion, text);
-        // Fetch updated version list
-        setTimeout(() => fetchGameVersions(), 500);
+        // Pass currentSessionId to both save and fetch to avoid race conditions
+        saveGameVersion(response.html, newVersion, text, currentSessionId);
+        // Fetch updated version list - pass currentSessionId to avoid race condition
+        setTimeout(() => fetchGameVersions(currentSessionId), 500);
       }
 
       // Refresh user data to update credits
@@ -256,11 +374,19 @@ const App: React.FC = () => {
     const leaderboardData = await getLeaderboard(game.id);
     setLeaderboard(leaderboardData);
 
-    // Add to recently played (keep last 6 unique games)
-    setRecentlyPlayed(prev => {
-      const filtered = prev.filter(g => g.id !== game.id);
-      return [game, ...filtered].slice(0, 6);
-    });
+    // Record play in database (for logged-in users)
+    if (user) {
+      await recordGamePlay(game.id);
+      // Refresh play history
+      const playHistory = await getPlayHistory(6);
+      setRecentlyPlayed(playHistory);
+    } else {
+      // For non-logged-in users, keep in-memory list
+      setRecentlyPlayed(prev => {
+        const filtered = prev.filter(g => g.id !== game.id);
+        return [game, ...filtered].slice(0, 6);
+      });
+    }
 
     setView('gaming');
   };
@@ -288,10 +414,20 @@ const App: React.FC = () => {
   };
 
   // VERSION CONTROL FUNCTIONS
-  const saveGameVersion = async (html: string, versionNum: number, prompt: string) => {
+  const saveGameVersion = async (html: string, versionNum: number, prompt: string, targetSessionId?: string) => {
+    const sessionIdToUse = targetSessionId || sessionId;
+    console.log('[saveGameVersion] Attempting to save version:', { versionNum, sessionIdToUse, promptLength: prompt.length });
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        console.error('[saveGameVersion] No session found - cannot save version');
+        return;
+      }
+
+      if (!sessionIdToUse) {
+        console.error('[saveGameVersion] No sessionId available - cannot save version');
+        return;
+      }
 
       const response = await fetch('/.netlify/functions/save-game-version', {
         method: 'POST',
@@ -300,7 +436,7 @@ const App: React.FC = () => {
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          sessionId: sessionId,
+          sessionId: sessionIdToUse,
           versionNumber: versionNum,
           html: html,
           prompt: prompt,
@@ -308,36 +444,63 @@ const App: React.FC = () => {
       });
 
       if (!response.ok) {
-        console.error('Failed to save game version');
+        const errorText = await response.text();
+        console.error('[saveGameVersion] Failed to save game version:', response.status, errorText);
+      } else {
+        const data = await response.json();
+        console.log('[saveGameVersion] Successfully saved version:', data);
       }
     } catch (error) {
-      console.error('Error saving game version:', error);
+      console.error('[saveGameVersion] Error saving game version:', error);
     }
   };
 
-  const fetchGameVersions = async () => {
+  const fetchGameVersions = async (specificSessionId?: string) => {
+    console.log('[fetchGameVersions] Called with:', { specificSessionId, currentSessionId: sessionId });
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session || !sessionId) return;
+      const targetSessionId = specificSessionId || sessionId;
 
-      const response = await fetch(`/.netlify/functions/get-game-versions?sessionId=${sessionId}`, {
+      if (!session) {
+        console.error('[fetchGameVersions] No session found - cannot fetch versions');
+        return;
+      }
+
+      if (!targetSessionId) {
+        console.error('[fetchGameVersions] No targetSessionId available - cannot fetch versions');
+        return;
+      }
+
+      console.log('[fetchGameVersions] Fetching versions for sessionId:', targetSessionId);
+
+      const response = await fetch(`/.netlify/functions/get-game-versions?sessionId=${targetSessionId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
+      console.log('[fetchGameVersions] Response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
-        setGameVersions(data.versions.map((v: any) => ({
+        console.log('[fetchGameVersions] Received data:', { versionsCount: data.versions?.length, versions: data.versions });
+
+        const mappedVersions = data.versions.map((v: any) => ({
           id: v.id,
           versionNumber: v.version_number,
           html: v.html,
           prompt: v.prompt,
           timestamp: new Date(v.created_at).getTime(),
-        })));
+        }));
+
+        console.log('[fetchGameVersions] Setting gameVersions state with', mappedVersions.length, 'versions');
+        setGameVersions(mappedVersions);
+      } else {
+        const errorText = await response.text();
+        console.error('[fetchGameVersions] Failed to fetch versions:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error fetching game versions:', error);
+      console.error('[fetchGameVersions] Error fetching game versions:', error);
     }
   };
 
@@ -352,6 +515,22 @@ const App: React.FC = () => {
     }]);
   };
 
+  const handleNewGame = async () => {
+    // Deactivate current session if exists
+    if (sessionId && user) {
+      await deactivateStudioSession(sessionId);
+    }
+
+    // Reset all game state
+    setMessages([]);
+    setGameData(null);
+    setStatus(GameStatus.IDLE);
+    setSuggestedTitle('');
+    setSuggestedDesc('');
+    setSessionId(uuidv4());
+    setGameVersions([]);
+  };
+
   return (
     <>
       {/* Global Modals */}
@@ -361,7 +540,6 @@ const App: React.FC = () => {
       {showLanding ? (
          <LandingPage
             onEnter={() => {
-              localStorage.setItem('hasEnteredApp', 'true');
               setShowLanding(false);
             }}
             onSignIn={() => setShowAuth(true)}
@@ -496,6 +674,7 @@ const App: React.FC = () => {
                             <ChatArea
                                 messages={messages}
                                 onSendMessage={handleSendMessage}
+                                onNewGame={handleNewGame}
                                 status={status}
                                 gameVersions={gameVersions}
                                 currentVersion={gameData?.version || 0}

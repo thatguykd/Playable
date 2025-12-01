@@ -7,7 +7,14 @@
     "dev": "netlify dev",
     "dev:vite": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase status",
+    "db:push": "supabase db push",
+    "db:diff": "supabase db diff",
+    "db:types": "supabase gen types typescript --local > types/database.ts"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",

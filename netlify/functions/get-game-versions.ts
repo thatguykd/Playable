@@ -48,6 +48,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     // 3. Fetch versions using RPC function
     const { data: versions, error: fetchError } = await supabase.rpc('get_game_versions', {
       session_uuid: sessionId,
+      user_uuid: user.id,
     });
 
     if (fetchError) {

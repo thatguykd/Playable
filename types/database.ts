@@ -172,6 +172,102 @@ export interface Database {
           created_at?: string;
         };
       };
+      play_history: {
+        Row: {
+          id: string;
+          user_id: string;
+          game_id: string;
+          last_played_at: string;
+          play_count: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          game_id: string;
+          last_played_at?: string;
+          play_count?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          game_id?: string;
+          last_played_at?: string;
+          play_count?: number;
+          created_at?: string;
+        };
+      };
+      studio_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          session_id: string;
+          messages: any[];
+          current_game_html: string | null;
+          current_version: number;
+          suggested_title: string | null;
+          suggested_description: string | null;
+          is_active: boolean;
+          last_updated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          session_id: string;
+          messages?: any[];
+          current_game_html?: string | null;
+          current_version?: number;
+          suggested_title?: string | null;
+          suggested_description?: string | null;
+          is_active?: boolean;
+          last_updated_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          session_id?: string;
+          messages?: any[];
+          current_game_html?: string | null;
+          current_version?: number;
+          suggested_title?: string | null;
+          suggested_description?: string | null;
+          is_active?: boolean;
+          last_updated_at?: string;
+          created_at?: string;
+        };
+      };
+      user_preferences: {
+        Row: {
+          user_id: string;
+          current_view: string;
+          active_game_id: string | null;
+          active_studio_session_id: string | null;
+          preferences: Record<string, any>;
+          updated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          current_view?: string;
+          active_game_id?: string | null;
+          active_studio_session_id?: string | null;
+          preferences?: Record<string, any>;
+          updated_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          current_view?: string;
+          active_game_id?: string | null;
+          active_studio_session_id?: string | null;
+          preferences?: Record<string, any>;
+          updated_at?: string;
+          created_at?: string;
+        };
+      };
     };
     Functions: {
       increment_game_plays: {
@@ -195,6 +291,31 @@ export interface Database {
           transaction_description: string;
           payment_intent_id?: string;
         };
+        Returns: void;
+      };
+      record_game_play: {
+        Args: {
+          p_user_id: string;
+          p_game_id: string;
+        };
+        Returns: void;
+      };
+      get_or_create_user_preferences: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: {
+          user_id: string;
+          current_view: string;
+          active_game_id: string | null;
+          active_studio_session_id: string | null;
+          preferences: Record<string, any>;
+          updated_at: string;
+          created_at: string;
+        };
+      };
+      cleanup_old_studio_sessions: {
+        Args: Record<string, never>;
         Returns: void;
       };
     };

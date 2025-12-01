@@ -1,20 +1,22 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Message, GameStatus, GameVersion } from '../types';
-import { Send, Bot, User, Sparkles, History } from 'lucide-react';
+import { Send, Bot, User, Sparkles, History, FilePlus } from 'lucide-react';
 import { VersionHistory } from './VersionHistory';
 
 interface ChatAreaProps {
   messages: Message[];
   onSendMessage: (text: string) => void;
+  onNewGame?: () => void;
   status: GameStatus;
   gameVersions?: GameVersion[];
   currentVersion?: number;
   onRestoreVersion?: (version: GameVersion) => void;
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, status, gameVersions = [], currentVersion = 0, onRestoreVersion }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onNewGame, status, gameVersions = [], currentVersion = 0, onRestoreVersion }) => {
   const [input, setInput] = React.useState('');
   const [showVersionDropdown, setShowVersionDropdown] = React.useState(false);
+  const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -72,38 +74,81 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, sta
           </div>
         </div>
 
-        {/* Version History Dropdown */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="flex items-center gap-2">
+          {/* New Game Button */}
+          {messages.length > 0 && onNewGame && (
+            <button
+              onClick={() => setShowNewGameConfirm(true)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border transition-all bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20 hover:border-green-500/30"
+              title="Start a new game"
+            >
+              <FilePlus size={16} />
+            </button>
+          )}
+
+          {/* Version History Dropdown */}
+          <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setShowVersionDropdown(!showVersionDropdown)}
-            disabled={gameVersions.length === 0}
-            className={`
-              w-8 h-8 rounded-lg flex items-center justify-center border transition-all
-              ${gameVersions.length === 0
-                ? 'bg-gray-800/30 text-gray-600 border-gray-800/50 cursor-not-allowed'
-                : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/30'
-              }
-            `}
-            title={gameVersions.length === 0 ? 'No version history yet' : 'View version history'}
+            className="w-8 h-8 rounded-lg flex items-center justify-center border transition-all bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/30"
+            title="View version history"
           >
             <History size={16} />
           </button>
 
           {/* Dropdown Menu */}
-          {showVersionDropdown && gameVersions.length > 0 && onRestoreVersion && (
+          {showVersionDropdown && (
             <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-hidden bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50 animate-fade-in">
-              <VersionHistory
-                versions={gameVersions}
-                currentVersion={currentVersion}
-                onRestore={(version) => {
-                  onRestoreVersion(version);
-                  setShowVersionDropdown(false);
-                }}
-              />
+              {gameVersions.length > 0 && onRestoreVersion ? (
+                <VersionHistory
+                  versions={gameVersions}
+                  currentVersion={currentVersion}
+                  onRestore={(version) => {
+                    onRestoreVersion(version);
+                    setShowVersionDropdown(false);
+                  }}
+                />
+              ) : (
+                <div className="p-6 text-center">
+                  <History size={32} className="mx-auto mb-3 text-gray-600" />
+                  <p className="text-sm text-gray-400 mb-1">No version history yet</p>
+                  <p className="text-xs text-gray-500">Previous versions will appear here</p>
+                </div>
+              )}
             </div>
           )}
         </div>
+        </div>
       </div>
+
+      {/* New Game Confirmation Dialog */}
+      {showNewGameConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-md w-full shadow-2xl animate-fade-in">
+            <h3 className="text-lg font-bold text-gray-100 mb-2">Start a new game?</h3>
+            <p className="text-sm text-gray-400 mb-6">
+              Your current progress is auto-saved and can be accessed through version history.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowNewGameConfirm(false)}
+                className="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onNewGame?.();
+                  setShowNewGameConfirm(false);
+                }}
+                className="px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors"
+              >
+                Start New Game
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
