@@ -1,14 +1,147 @@
 
-import React from 'react';
-import { Gamepad2, Layers, Cpu, Code, ArrowRight, Zap, Users, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Gamepad2, ArrowRight, Paperclip, Palette, X, ChevronDown, LogOut } from 'lucide-react';
 import SnakeBackground from './SnakeBackground';
+import { User } from '../types';
 
 interface LandingPageProps {
   onEnter: () => void;
   onSignIn: () => void;
+  onSignOut: () => void;
+  user: User | null;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onEnter, onSignIn }) => {
+const gameExamples = [
+  "Create a space invaders game where enemies drop power-ups...",
+  "Build a flappy bird clone with portals instead of pipes...",
+  "Make a typing game where words fall from the sky like Tetris...",
+  "Design a pong game but the ball splits into two when hit...",
+  "Create a platformer where gravity reverses when you jump..."
+];
+
+const designStyles = [
+  { id: 'neon', name: 'Neon Style', description: 'Vibrant neon colors with glowing effects' },
+  { id: 'colorful', name: 'Colorful', description: 'Bright and playful color palette' },
+  { id: 'mystical', name: 'Mystical', description: 'Dark and mysterious aesthetic' },
+  { id: 'retro', name: 'Retro Pixel', description: 'Classic 8-bit pixel art style' },
+  { id: 'minimalist', name: 'Minimalist', description: 'Clean and simple design' }
+];
+
+export const LandingPage: React.FC<LandingPageProps> = ({ onEnter, onSignIn, onSignOut, user }) => {
+  const [promptInput, setPromptInput] = useState('');
+  const [typewriterText, setTypewriterText] = useState('');
+  const [selectedDesign, setSelectedDesign] = useState(designStyles[0]);
+  const [showDesignDropdown, setShowDesignDropdown] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Typewriter effect hook
+  useEffect(() => {
+    // Don't run typewriter if user is typing
+    if (promptInput) {
+      setTypewriterText('');
+      return;
+    }
+
+    let currentIndex = 0;
+    let currentText = '';
+    let isDeleting = false;
+    let charIndex = 0;
+    let timeoutId: NodeJS.Timeout;
+
+    const type = () => {
+      const currentExample = gameExamples[currentIndex];
+
+      if (!isDeleting) {
+        // Typing forward
+        currentText = currentExample.substring(0, charIndex + 1);
+        charIndex++;
+        setTypewriterText(currentText);
+
+        if (charIndex === currentExample.length) {
+          // Finished typing, pause then start deleting
+          timeoutId = setTimeout(() => {
+            isDeleting = true;
+            type();
+          }, 2000);
+        } else {
+          timeoutId = setTimeout(type, 50);
+        }
+      } else {
+        // Deleting backward
+        currentText = currentExample.substring(0, charIndex - 1);
+        charIndex--;
+        setTypewriterText(currentText);
+
+        if (charIndex === 0) {
+          // Finished deleting, pause then move to next example
+          isDeleting = false;
+          currentIndex = (currentIndex + 1) % gameExamples.length;
+          timeoutId = setTimeout(type, 500);
+        } else {
+          timeoutId = setTimeout(type, 30);
+        }
+      }
+    };
+
+    type();
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [promptInput]);
+
+  const handleSubmit = () => {
+    if (!promptInput.trim()) return;
+
+    let fullPrompt = promptInput.trim();
+    // Add design style to prompt
+    if (selectedDesign.id !== 'neon') {
+      fullPrompt += ` (Style: ${selectedDesign.name})`;
+    }
+
+    if (user) {
+      // User is already logged in - go directly to studio with prompt
+      localStorage.setItem('pendingGamePrompt', fullPrompt);
+      if (attachedFile) {
+        localStorage.setItem('pendingGameHasAttachment', 'true');
+      }
+      onEnter(); // Go to studio/app
+    } else {
+      // User not logged in - store prompt and show auth
+      localStorage.setItem('pendingGamePrompt', fullPrompt);
+      if (attachedFile) {
+        localStorage.setItem('pendingGameHasAttachment', 'true');
+      }
+      onSignIn(); // Show auth page first
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey && promptInput.trim()) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setAttachedFile(file);
+    }
+  };
+
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveFile = () => {
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans overflow-x-hidden relative">
       {/* Snake Game Background */}
@@ -26,12 +159,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter, onSignIn }) =
           </div>
           <span className="text-xl font-bold tracking-tight">Playable</span>
         </div>
-        <button 
-          onClick={onSignIn}
-          className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
-        >
-          Sign In
-        </button>
+        {user ? (
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-gray-300">{user.name}</span>
+            <button
+              onClick={onSignOut}
+              className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white transition-colors"
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onSignIn}
+            className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
+          >
+            Sign In
+          </button>
+        )}
       </nav>
 
       {/* Hero Section */}
@@ -47,17 +193,121 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter, onSignIn }) =
         </h1>
 
         <p className="text-xl text-gray-400 max-w-2xl mb-12 animate-fade-in" style={{ animationDelay: '100ms' }}>
-          Turn your text descriptions into playable games instantly. No coding required. Just pure imagination powered by Gemini 2.5.
+          Create games by chatting with AI. No Coding required. Just pure imagination.
         </p>
 
-        <div className="flex flex-col md:flex-row gap-4 animate-fade-in" style={{ animationDelay: '200ms' }}>
-          <button 
+        {/* Game Prompt Input Field */}
+        <div className="w-full max-w-4xl mb-8 animate-fade-in" style={{ animationDelay: '150ms' }}>
+          <div className="relative bg-gray-900/70 border-2 border-gray-800 rounded-2xl p-4 backdrop-blur hover:border-indigo-600/50 transition-all shadow-[0_0_20px_rgba(0,0,0,0.3)]">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {/* Textarea */}
+            <textarea
+              value={promptInput}
+              onChange={(e) => setPromptInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={typewriterText}
+              rows={3}
+              className="w-full bg-transparent text-lg text-white placeholder-gray-500 resize-none focus:outline-none mb-3"
+            />
+
+            {/* Attached File Preview */}
+            {attachedFile && (
+              <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-gray-800/50 rounded-lg w-fit">
+                <Paperclip size={16} className="text-indigo-400" />
+                <span className="text-sm text-gray-300">{attachedFile.name}</span>
+                <button
+                  onClick={handleRemoveFile}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* Bottom Bar with Buttons */}
+            <div className="flex items-center justify-between">
+              {/* Left side buttons */}
+              <div className="flex items-center gap-2">
+                {/* Attach Button */}
+                <button
+                  onClick={handleAttachClick}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg transition-all text-sm"
+                  title="Attach image for inspiration"
+                >
+                  <Paperclip size={18} />
+                  <span>Attach</span>
+                </button>
+
+                {/* Design Style Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDesignDropdown(!showDesignDropdown)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg transition-all text-sm"
+                  >
+                    <Palette size={18} />
+                    <span>{selectedDesign.name}</span>
+                    <ChevronDown size={16} className={`transition-transform ${showDesignDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {showDesignDropdown && (
+                    <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 border border-gray-800 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden z-50">
+                      {designStyles.map((style) => (
+                        <button
+                          key={style.id}
+                          onClick={() => {
+                            setSelectedDesign(style);
+                            setShowDesignDropdown(false);
+                          }}
+                          className={`w-full px-4 py-3 text-left hover:bg-gray-800 transition-colors ${
+                            selectedDesign.id === style.id ? 'bg-gray-800' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <Palette size={18} className={selectedDesign.id === style.id ? 'text-indigo-400' : 'text-gray-400'} />
+                            <div>
+                              <div className={`text-sm font-medium ${selectedDesign.id === style.id ? 'text-indigo-400' : 'text-white'}`}>
+                                {style.name}
+                              </div>
+                              <div className="text-xs text-gray-400">{style.description}</div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right side - Submit button */}
+              <button
+                onClick={handleSubmit}
+                disabled={!promptInput.trim()}
+                className="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:cursor-not-allowed text-white rounded-xl transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_25px_rgba(79,70,229,0.5)]"
+                title="Submit prompt"
+              >
+                <ArrowRight size={24} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-4 animate-fade-in" style={{ animationDelay: '250ms' }}>
+          <button
             onClick={onEnter}
-            className="group px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-lg transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] flex items-center gap-2"
+            className="group px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-lg transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] flex items-center gap-2 justify-center"
           >
             Start Creating <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
           </button>
-          <button 
+          <button
             onClick={onEnter}
             className="px-8 py-4 bg-gray-900 hover:bg-gray-800 text-white border border-gray-800 hover:border-gray-700 rounded-xl font-bold text-lg transition-all"
           >
@@ -67,161 +317,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter, onSignIn }) =
 
       </main>
 
-      {/* Enhanced Features Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pb-32">
-
-        {/* Section 1: Text to Code */}
-        <div className="grid md:grid-cols-2 gap-16 items-center mb-32 animate-fade-in">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-xs font-mono text-cyan-400 mb-4">
-              01
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              Text to Code
-            </h2>
-            <p className="text-xl text-gray-400 mb-6">
-              Describe mechanics, visuals, and rules in plain English. Our AI architect powered by Gemini 2.5 handles the complex logic, turning your ideas into fully functional HTML5 games.
-            </p>
-            <div className="space-y-3 text-gray-500">
-              <p className="flex items-start gap-2">
-                <Code size={20} className="text-cyan-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Perfect for game jams:</strong> Go from concept to playable prototype in minutes, not hours.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Code size={20} className="text-cyan-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Rapid prototyping:</strong> Test game mechanics instantly without writing a single line of code.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Code size={20} className="text-cyan-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Bring ideas to life:</strong> No technical barriers between your imagination and reality.</span>
-              </p>
-            </div>
-          </div>
-          <div className="relative h-80 md:h-96">
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-2xl border border-cyan-500/30 backdrop-blur flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Code size={64} className="mx-auto mb-4 text-cyan-400" />
-                <p className="text-sm">Studio Interface Preview</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 2: Instant Play */}
-        <div className="grid md:grid-cols-2 gap-16 items-center mb-32 animate-fade-in">
-          <div className="relative h-80 md:h-96 md:order-1">
-            <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-2xl border border-pink-500/30 backdrop-blur flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Gamepad2 size={64} className="mx-auto mb-4 text-pink-400" />
-                <p className="text-sm">Live Game Preview</p>
-              </div>
-            </div>
-          </div>
-          <div className="md:order-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-xs font-mono text-pink-400 mb-4">
-              02
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              Instant Play
-            </h2>
-            <p className="text-xl text-gray-400 mb-6">
-              Preview games in real-time within your browser. Zero deployment time, zero setup. Changes reflect instantly as you iterate and refine your creation.
-            </p>
-            <div className="space-y-3 text-gray-500">
-              <p className="flex items-start gap-2">
-                <Gamepad2 size={20} className="text-pink-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">For educators:</strong> Teach game design concepts with immediate visual feedback.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Gamepad2 size={20} className="text-pink-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">For content creators:</strong> Generate unique games for streams, videos, and audience engagement.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Gamepad2 size={20} className="text-pink-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Testing gameplay:</strong> Quickly validate mechanics before committing to full development.</span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Social Hub */}
-        <div className="grid md:grid-cols-2 gap-16 items-center mb-32 animate-fade-in">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-mono text-indigo-400 mb-4">
-              03
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              Social Hub
-            </h2>
-            <p className="text-xl text-gray-400 mb-6">
-              Publish your masterpieces to our vibrant community. Compete on global leaderboards, challenge friends, and discover games created by thousands of developers worldwide.
-            </p>
-            <div className="space-y-3 text-gray-500">
-              <p className="flex items-start gap-2">
-                <Layers size={20} className="text-indigo-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Community engagement:</strong> Share your games and get instant feedback from players.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Layers size={20} className="text-indigo-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Competitions:</strong> Host tournaments with built-in leaderboard tracking.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Layers size={20} className="text-indigo-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Showcase creativity:</strong> Build your portfolio of playable games to share anywhere.</span>
-              </p>
-            </div>
-          </div>
-          <div className="relative h-80 md:h-96">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 rounded-2xl border border-indigo-500/30 backdrop-blur flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Users size={64} className="mx-auto mb-4 text-indigo-400" />
-                <p className="text-sm">Leaderboard & Community</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 4: AI-Powered Iterations */}
-        <div className="grid md:grid-cols-2 gap-16 items-center mb-16 animate-fade-in">
-          <div className="relative h-80 md:h-96 md:order-1">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-2xl border border-emerald-500/30 backdrop-blur flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <Sparkles size={64} className="mx-auto mb-4 text-emerald-400" />
-                <p className="text-sm">Iterative Development</p>
-              </div>
-            </div>
-          </div>
-          <div className="md:order-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400 mb-4">
-              04
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              AI-Powered Iterations
-            </h2>
-            <p className="text-xl text-gray-400 mb-6">
-              Refine your games with conversational edits. Add features, tweak mechanics, or completely transform gameplay—all through simple text commands. Full version history lets you restore any previous iteration.
-            </p>
-            <div className="space-y-3 text-gray-500">
-              <p className="flex items-start gap-2">
-                <Sparkles size={20} className="text-emerald-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Refining games:</strong> "Make it harder", "Add power-ups", "Change the theme to space".</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Sparkles size={20} className="text-emerald-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Adding features:</strong> Build on existing games without starting from scratch.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Sparkles size={20} className="text-emerald-400 mt-1 flex-shrink-0" />
-                <span><strong className="text-white">Collaborative creation:</strong> Perfect for teams iterating on game concepts together.</span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-      </section>
-
       {/* Footer */}
-      <footer className="border-t border-gray-900 py-12 text-center text-gray-600 text-sm">
+      <footer className="border-t border-gray-900 py-12 mt-32 text-center text-gray-600 text-sm">
         <p>&copy; {new Date().getFullYear()} Playable. Powered by Google Gemini.</p>
       </footer>
     </div>

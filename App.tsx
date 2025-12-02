@@ -86,9 +86,12 @@ const App: React.FC = () => {
         console.log('🔍 Current user check:', currentUser ? 'User logged in' : 'No user');
         if (currentUser) {
           setUser(currentUser);
-          // If user is logged in, hide landing page and enter app
-          console.log('✅ User is logged in - hiding landing page');
-          setShowLanding(false);
+          // Keep user on landing page unless there's a pending prompt
+          const hasPendingPrompt = localStorage.getItem('pendingGamePrompt');
+          if (!hasPendingPrompt) {
+            console.log('✅ User is logged in - staying on landing page');
+            // Don't hide landing page - let user stay there
+          }
           const savedIds = await getSavedGameIds();
           setSavedGameIds(savedIds);
 
@@ -180,6 +183,22 @@ const App: React.FC = () => {
           // Load play history
           const playHistory = await getPlayHistory(6);
           setRecentlyPlayed(playHistory);
+
+          // Check for pending game prompt from landing page
+          const pendingPrompt = localStorage.getItem('pendingGamePrompt');
+          if (pendingPrompt) {
+            console.log('📝 Found pending prompt from landing page:', pendingPrompt);
+            // Switch to studio view
+            setView('studio');
+            setShowLanding(false);
+            setShowAuth(false);
+            // Add the prompt as a user message and trigger generation
+            setTimeout(() => {
+              handleSendMessage(pendingPrompt);
+            }, 500);
+            // Clear the pending prompt
+            localStorage.removeItem('pendingGamePrompt');
+          }
         } else {
           console.error('Failed to fetch user profile after authentication');
         }
@@ -541,8 +560,29 @@ const App: React.FC = () => {
          <LandingPage
             onEnter={() => {
               setShowLanding(false);
+              // Check for pending game prompt and auto-submit it
+              const pendingPrompt = localStorage.getItem('pendingGamePrompt');
+              if (pendingPrompt && user) {
+                console.log('📝 Found pending prompt from landing page:', pendingPrompt);
+                setView('studio');
+                // Add the prompt as a user message and trigger generation
+                setTimeout(() => {
+                  handleSendMessage(pendingPrompt);
+                }, 500);
+                // Clear the pending prompt
+                localStorage.removeItem('pendingGamePrompt');
+                localStorage.removeItem('pendingGameHasAttachment');
+              }
             }}
             onSignIn={() => setShowAuth(true)}
+            onSignOut={async () => {
+              await logout();
+              setUser(null);
+              setMessages([]);
+              setGameData(null);
+              setStatus(GameStatus.IDLE);
+            }}
+            user={user}
          />
       ) : (
         <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-gray-100 font-sans">
@@ -550,12 +590,15 @@ const App: React.FC = () => {
             <div className="w-20 md:w-64 bg-gray-950 border-r border-gray-800 flex flex-col shrink-0 z-20 transition-all duration-300 group">
                 
                 {/* Logo Area */}
-                <div className="h-20 flex items-center px-6 border-b border-gray-800">
+                <button
+                    onClick={() => setShowLanding(true)}
+                    className="h-20 flex items-center px-6 border-b border-gray-800 hover:bg-gray-900/50 transition-colors w-full text-left"
+                >
                     <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20 mr-3 shrink-0">
                         <Gamepad2 size={20} />
                     </div>
                     <span className="text-lg font-bold tracking-tight hidden md:block">Playable</span>
-                </div>
+                </button>
                 
                 {/* Navigation */}
                 <nav className="flex-1 flex flex-col gap-2 p-4">

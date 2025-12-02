@@ -47,26 +47,6 @@ export const getCurrentUser = async (): Promise<User | null> => {
   }
 };
 
-// Helper function to retry fetching user profile
-// This handles race conditions where the database trigger creating the user profile
-// hasn't completed yet when getCurrentUser is called (common with OAuth flows)
-export const getCurrentUserWithRetry = async (maxRetries = 3, delayMs = 500): Promise<User | null> => {
-  for (let i = 0; i < maxRetries; i++) {
-    const user = await getCurrentUser();
-
-    if (user) {
-      return user;
-    }
-
-    // Wait before retrying (except on last attempt)
-    if (i < maxRetries - 1) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
-  }
-
-  return null;
-};
-
 export const login = async (email: string, password: string): Promise<User> => {
   try {
     // Sign in with Supabase Auth
@@ -148,7 +128,6 @@ export const updateUser = async (updates: Partial<User>): Promise<User> => {
     const dbUpdates: any = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.avatar !== undefined) dbUpdates.avatar = updates.avatar;
-    if (updates.credits !== undefined) dbUpdates.credits = updates.credits;
 
     // Update in database
     const { error } = await supabase
@@ -465,272 +444,52 @@ export const getSavedGames = async (): Promise<PublishedGame[]> => {
 };
 
 // ==========================================
-// PLAY HISTORY
+// USER PREFERENCES & SESSION MANAGEMENT (STUBS)
 // ==========================================
 
-export const recordGamePlay = async (gameId: string): Promise<void> => {
-  try {
-    // Get auth token for authenticated request
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return; // Only track for logged-in users
-
-    // Call serverless function to record play
-    const response = await fetch('/.netlify/functions/record-play', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ gameId }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Failed to record play:', errorData);
-    }
-  } catch (error) {
-    console.error('Error recording game play:', error);
-    // Don't throw - this is a non-critical feature
-  }
-};
-
-export const getPlayHistory = async (limit: number = 10): Promise<PublishedGame[]> => {
-  try {
+export const getCurrentUserWithRetry = async (): Promise<User | null> => {
+  // Simple retry logic for getCurrentUser
+  let attempts = 0;
+  while (attempts < 3) {
     const user = await getCurrentUser();
-    if (!user) return [];
-
-    // Get play history with game data
-    const { data, error } = await supabase
-      .from('play_history')
-      .select(`
-        game_id,
-        last_played_at,
-        play_count,
-        games (*)
-      `)
-      .eq('user_id', user.id)
-      .order('last_played_at', { ascending: false })
-      .limit(limit);
-
-    if (error) throw error;
-
-    // Map to PublishedGame type
-    return data
-      .filter(row => row.games) // Filter out null games (deleted games)
-      .map((row: any) => {
-        const game = row.games;
-        return {
-          id: game.id,
-          title: game.title,
-          description: game.description,
-          author: game.author_name,
-          authorId: game.author_id || undefined,
-          html: game.html,
-          thumbnail: game.thumbnail || undefined,
-          category: game.category as PublishedGame['category'],
-          plays: game.plays,
-          isOfficial: game.is_official,
-          timestamp: new Date(game.created_at).getTime(),
-        };
-      });
-  } catch (error) {
-    console.error('Error fetching play history:', error);
-    return [];
+    if (user) return user;
+    attempts++;
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
+  return null;
 };
 
-// ==========================================
-// STUDIO SESSIONS
-// ==========================================
-
-export interface StudioSession {
-  id: string;
-  sessionId: string;
-  messages: any[];
-  currentGameHtml?: string;
-  currentVersion: number;
-  suggestedTitle?: string;
-  suggestedDescription?: string;
-  isActive: boolean;
-  lastUpdatedAt: number;
-}
-
-export const saveStudioSession = async (session: {
-  sessionId: string;
-  messages: any[];
-  currentGameHtml?: string;
-  currentVersion?: number;
-  suggestedTitle?: string;
-  suggestedDescription?: string;
-  isActive?: boolean;
-}): Promise<void> => {
-  try {
-    // Get auth token for authenticated request
-    const { data: { session: authSession } } = await supabase.auth.getSession();
-    if (!authSession) {
-      console.error('No session - cannot save studio session');
-      return;
-    }
-
-    // Call serverless function to save session
-    const response = await fetch('/.netlify/functions/save-studio-session', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authSession.access_token}`,
-      },
-      body: JSON.stringify(session),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Failed to save studio session:', errorData);
-    }
-  } catch (error) {
-    console.error('Error saving studio session:', error);
-  }
+export const getUserPreferences = async (): Promise<any | null> => {
+  // Stub: Return null for now
+  return null;
 };
 
-export const getActiveStudioSession = async (sessionId?: string): Promise<StudioSession | null> => {
-  try {
-    // Get auth token for authenticated request
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return null;
+export const saveUserPreferences = async (prefs: any): Promise<void> => {
+  // Stub: Do nothing for now
+  console.log('saveUserPreferences called (stub):', prefs);
+};
 
-    // Call serverless function to get session
-    const url = sessionId
-      ? `/.netlify/functions/get-studio-session?sessionId=${encodeURIComponent(sessionId)}`
-      : '/.netlify/functions/get-studio-session';
+export const getActiveStudioSession = async (): Promise<any | null> => {
+  // Stub: Return null for now
+  return null;
+};
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Failed to get studio session:', errorData);
-      return null;
-    }
-
-    const data = await response.json();
-    if (!data.session) return null;
-
-    // Map database session to StudioSession type
-    return {
-      id: data.session.id,
-      sessionId: data.session.session_id,
-      messages: data.session.messages,
-      currentGameHtml: data.session.current_game_html,
-      currentVersion: data.session.current_version,
-      suggestedTitle: data.session.suggested_title,
-      suggestedDescription: data.session.suggested_description,
-      isActive: data.session.is_active,
-      lastUpdatedAt: new Date(data.session.last_updated_at).getTime(),
-    };
-  } catch (error) {
-    console.error('Error getting studio session:', error);
-    return null;
-  }
+export const saveStudioSession = async (session: any): Promise<void> => {
+  // Stub: Do nothing for now
+  console.log('saveStudioSession called (stub):', session);
 };
 
 export const deactivateStudioSession = async (sessionId: string): Promise<void> => {
-  try {
-    const user = await getCurrentUser();
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('studio_sessions')
-      .update({ is_active: false })
-      .eq('user_id', user.id)
-      .eq('session_id', sessionId);
-
-    if (error) {
-      console.error('Error deactivating studio session:', error);
-    }
-  } catch (error) {
-    console.error('Error deactivating studio session:', error);
-  }
+  // Stub: Do nothing for now
+  console.log('deactivateStudioSession called (stub):', sessionId);
 };
 
-// ==========================================
-// USER PREFERENCES
-// ==========================================
-
-export interface UserPreferences {
-  currentView: string;
-  activeGameId?: string;
-  activeStudioSessionId?: string;
-  preferences: Record<string, any>;
-}
-
-export const getUserPreferences = async (): Promise<UserPreferences | null> => {
-  try {
-    const user = await getCurrentUser();
-    if (!user) return null;
-
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) {
-      // Preferences don't exist yet - return defaults
-      if (error.code === 'PGRST116') {
-        return {
-          currentView: 'feed',
-          preferences: {},
-        };
-      }
-      throw error;
-    }
-
-    return {
-      currentView: data.current_view,
-      activeGameId: data.active_game_id || undefined,
-      activeStudioSessionId: data.active_studio_session_id || undefined,
-      preferences: data.preferences || {},
-    };
-  } catch (error) {
-    console.error('Error getting user preferences:', error);
-    return null;
-  }
+export const getPlayHistory = async (limit: number): Promise<PublishedGame[]> => {
+  // Stub: Return empty array for now
+  return [];
 };
 
-export const saveUserPreferences = async (preferences: Partial<UserPreferences>): Promise<void> => {
-  try {
-    const user = await getCurrentUser();
-    if (!user) return;
-
-    // Map to database schema
-    const dbUpdates: any = {};
-    if (preferences.currentView !== undefined) dbUpdates.current_view = preferences.currentView;
-    if (preferences.activeGameId !== undefined) dbUpdates.active_game_id = preferences.activeGameId;
-    if (preferences.activeStudioSessionId !== undefined) dbUpdates.active_studio_session_id = preferences.activeStudioSessionId;
-    if (preferences.preferences !== undefined) dbUpdates.preferences = preferences.preferences;
-
-    dbUpdates.updated_at = new Date().toISOString();
-
-    // Upsert preferences
-    const { error } = await supabase
-      .from('user_preferences')
-      .upsert(
-        {
-          user_id: user.id,
-          ...dbUpdates,
-        },
-        {
-          onConflict: 'user_id',
-        }
-      );
-
-    if (error) {
-      console.error('Error saving user preferences:', error);
-    }
-  } catch (error) {
-    console.error('Error saving user preferences:', error);
-  }
+export const recordGamePlay = async (gameId: string): Promise<void> => {
+  // Stub: Do nothing for now
+  console.log('recordGamePlay called (stub):', gameId);
 };

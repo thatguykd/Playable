@@ -1,7 +1,23 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Message, GameStatus, GameVersion } from '../types';
-import { Send, Bot, User, Sparkles, History, FilePlus } from 'lucide-react';
+import { Send, Bot, User, Sparkles, History, FilePlus, Paperclip, Palette, X, ChevronDown, ArrowRight, Gamepad2 } from 'lucide-react';
 import { VersionHistory } from './VersionHistory';
+
+const designStyles = [
+  { id: 'neon', name: 'Neon Style', description: 'Vibrant neon colors with glowing effects' },
+  { id: 'colorful', name: 'Colorful', description: 'Bright and playful color palette' },
+  { id: 'mystical', name: 'Mystical', description: 'Dark and mysterious aesthetic' },
+  { id: 'retro', name: 'Retro Pixel', description: 'Classic 8-bit pixel art style' },
+  { id: 'minimalist', name: 'Minimalist', description: 'Clean and simple design' }
+];
+
+const emptyStateExamples = [
+  "Create a space invaders game where enemies drop power-ups...",
+  "Build a flappy bird clone with portals instead of pipes...",
+  "Make a typing game where words fall from the sky like Tetris...",
+  "Design a pong game but the ball splits into two when hit...",
+  "Create a platformer where gravity reverses when you jump..."
+];
 
 interface ChatAreaProps {
   messages: Message[];
@@ -17,9 +33,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
   const [input, setInput] = React.useState('');
   const [showVersionDropdown, setShowVersionDropdown] = React.useState(false);
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
+  const [selectedDesign, setSelectedDesign] = useState(designStyles[0]);
+  const [showDesignDropdown, setShowDesignDropdown] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [typewriterText, setTypewriterText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,17 +67,99 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
     };
   }, [showVersionDropdown]);
 
+  // Typewriter effect for empty state
+  useEffect(() => {
+    // Only run if there are no messages
+    if (messages.length > 0) {
+      setTypewriterText('');
+      return;
+    }
+
+    let currentIndex = 0;
+    let currentText = '';
+    let isDeleting = false;
+    let charIndex = 0;
+    let timeoutId: NodeJS.Timeout;
+
+    const type = () => {
+      const currentExample = emptyStateExamples[currentIndex];
+
+      if (!isDeleting) {
+        // Typing forward
+        currentText = currentExample.substring(0, charIndex + 1);
+        charIndex++;
+        setTypewriterText(currentText);
+
+        if (charIndex === currentExample.length) {
+          // Finished typing, pause then start deleting
+          timeoutId = setTimeout(() => {
+            isDeleting = true;
+            type();
+          }, 2000);
+        } else {
+          timeoutId = setTimeout(type, 50);
+        }
+      } else {
+        // Deleting backward
+        currentText = currentExample.substring(0, charIndex - 1);
+        charIndex--;
+        setTypewriterText(currentText);
+
+        if (charIndex === 0) {
+          // Finished deleting, pause then move to next example
+          isDeleting = false;
+          currentIndex = (currentIndex + 1) % emptyStateExamples.length;
+          timeoutId = setTimeout(type, 500);
+        } else {
+          timeoutId = setTimeout(type, 30);
+        }
+      }
+    };
+
+    type();
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [messages.length]);
+
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim() || status === GameStatus.GENERATING) return;
-    onSendMessage(input);
+
+    let fullPrompt = input.trim();
+    // Add design style to prompt if not default
+    if (selectedDesign.id !== 'neon') {
+      fullPrompt += ` (Style: ${selectedDesign.name})`;
+    }
+
+    onSendMessage(fullPrompt);
     setInput('');
+    setAttachedFile(null); // Clear attached file after sending
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setAttachedFile(file);
+    }
+  };
+
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveFile = () => {
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -154,10 +257,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
       <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center opacity-40 p-8">
-            <Sparkles size={40} className="mb-4 text-indigo-400" />
+            <Gamepad2 size={40} className="mb-4 text-indigo-400" />
             <h3 className="text-lg font-semibold text-gray-200 mb-2">Build Your Game</h3>
-            <p className="text-gray-400 max-w-xs text-sm">
-              "Create a cyberpunk snake game" or "Make a platformer with double jump".
+            <p className="text-gray-400 max-w-sm text-sm min-h-[3rem] flex items-center justify-center">
+              "{typewriterText}"
             </p>
           </div>
         )}
@@ -200,28 +303,111 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-gray-950 border-t border-gray-800">
-        <form 
-          className="relative bg-gray-900 rounded-xl border border-gray-800 focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-indigo-500 transition-all shadow-lg"
-          onSubmit={handleSubmit}
-        >
+      <div className="p-3 bg-gray-950 border-t border-gray-800">
+        <div className="relative bg-gray-900/70 border-2 border-gray-800 rounded-xl p-3 backdrop-blur hover:border-indigo-600/50 transition-all shadow-lg">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          {/* Textarea */}
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Describe your game concept..."
-            className="w-full bg-transparent text-gray-200 p-4 pr-12 h-[60px] max-h-[120px] resize-none focus:outline-none placeholder:text-gray-600 text-sm scrollbar-hide"
+            rows={2}
+            className="w-full bg-transparent text-sm text-white placeholder-gray-500 resize-none focus:outline-none mb-2 scrollbar-hide"
             disabled={status === GameStatus.GENERATING}
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || status === GameStatus.GENERATING}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-400 hover:text-white disabled:opacity-30 disabled:hover:text-indigo-400 transition-colors"
-          >
-            <Send size={16} />
-          </button>
-        </form>
+
+          {/* Attached File Preview */}
+          {attachedFile && (
+            <div className="mb-2 flex items-center gap-2 px-2 py-1.5 bg-gray-800/50 rounded-lg w-fit">
+              <Paperclip size={14} className="text-indigo-400" />
+              <span className="text-xs text-gray-300">{attachedFile.name}</span>
+              <button
+                onClick={handleRemoveFile}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Bottom Bar with Buttons */}
+          <div className="flex items-center justify-between">
+            {/* Left side buttons */}
+            <div className="flex items-center gap-1.5">
+              {/* Attach Button */}
+              <button
+                onClick={handleAttachClick}
+                disabled={status === GameStatus.GENERATING}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800/50 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Attach image for inspiration"
+              >
+                <Paperclip size={14} />
+                <span>Attach</span>
+              </button>
+
+              {/* Design Style Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowDesignDropdown(!showDesignDropdown)}
+                  disabled={status === GameStatus.GENERATING}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800/50 hover:bg-gray-800 text-gray-300 hover:text-white rounded-lg transition-all text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Palette size={14} />
+                  <span>{selectedDesign.name}</span>
+                  <ChevronDown size={12} className={`transition-transform ${showDesignDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {showDesignDropdown && (
+                  <div className="absolute left-0 bottom-full mb-2 w-56 bg-gray-900 border border-gray-800 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)] overflow-hidden z-50">
+                    {designStyles.map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={() => {
+                          setSelectedDesign(style);
+                          setShowDesignDropdown(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left hover:bg-gray-800 transition-colors ${
+                          selectedDesign.id === style.id ? 'bg-gray-800' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <Palette size={14} className={selectedDesign.id === style.id ? 'text-indigo-400' : 'text-gray-400'} />
+                          <div>
+                            <div className={`text-xs font-medium ${selectedDesign.id === style.id ? 'text-indigo-400' : 'text-white'}`}>
+                              {style.name}
+                            </div>
+                            <div className="text-[10px] text-gray-400">{style.description}</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right side - Submit button */}
+            <button
+              onClick={handleSubmit}
+              disabled={!input.trim() || status === GameStatus.GENERATING}
+              className="p-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:cursor-not-allowed text-white rounded-lg transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_25px_rgba(79,70,229,0.5)]"
+              title="Send message"
+            >
+              <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
