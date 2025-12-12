@@ -1,0 +1,18 @@
+-- ============================================
+-- Revert Credits to Production Values
+-- ============================================
+-- Run this after testing period ends and before official launch
+--
+-- INSTRUCTIONS:
+-- 1. Remove the .disabled extension from this file
+-- 2. Run via Supabase SQL Editor or CLI
+-- 3. New signups will get 50 credits again
+
+ALTER TABLE public.users
+  ALTER COLUMN credits SET DEFAULT 50;
+
+-- Note: We DON'T reduce existing user credits
+-- Let testers keep their bonus as early supporters
+
+COMMENT ON COLUMN public.users.credits IS
+  'Available credits for game generation (new game = 50, iteration = 10)';

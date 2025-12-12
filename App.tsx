@@ -301,33 +301,26 @@ const App: React.FC = () => {
 
   // SEND MESSAGE / GENERATE GAME
   const handleSendMessage = async (text: string) => {
-    // DEV MODE: Skip all frontend checks for testing (REMOVE BEFORE PRODUCTION)
-    const isDevMode = import.meta.env.VITE_DEV_MODE === 'true';
+    // 1. Check Auth
+    if (!user) {
+        setShowAuth(true);
+        return;
+    }
 
-    if (!isDevMode) {
-      // 1. Check Auth
-      if (!user) {
-          setShowAuth(true);
-          return;
-      }
+    // 2. Check Limits (Free Tier)
+    const isNewGame = !gameData;
+    if (isNewGame && user.tier === 'free' && user.gamesCreated >= LIMIT_FREE_GAMES) {
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: "Free Tier Limit Reached. Upgrade to create more games.", timestamp: Date.now() }]);
+        setPricingAction('upgrade');
+        setShowPricing(true);
+        return;
+    }
 
-      // 2. Check Limits (Free Tier)
-      const isNewGame = !gameData;
-      if (isNewGame && user.tier === 'free' && user.gamesCreated >= LIMIT_FREE_GAMES) {
-          setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: "Free Tier Limit Reached. Upgrade to create more games.", timestamp: Date.now() }]);
-          setPricingAction('upgrade');
-          setShowPricing(true);
-          return;
-      }
-
-      if (!isNewGame && user.tier === 'free') {
-           setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: "Iterations are a Pro feature. Upgrade to edit this game.", timestamp: Date.now() }]);
-           setPricingAction('upgrade');
-           setShowPricing(true);
-           return;
-      }
-    } else {
-      console.log('🔧 DEV MODE: Skipping frontend auth and tier checks');
+    if (!isNewGame && user.tier === 'free') {
+         setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: "Iterations are a Pro feature. Upgrade to edit this game.", timestamp: Date.now() }]);
+         setPricingAction('upgrade');
+         setShowPricing(true);
+         return;
     }
 
     // Note: Credit checking and deduction is now handled by the backend API

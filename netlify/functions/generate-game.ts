@@ -116,9 +116,6 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     const isIteration = !!existingHtml;
     const cost = isIteration ? COST_ITERATION : COST_NEW_GAME;
 
-    // DEV MODE: Skip all credit and tier checks (REMOVE BEFORE PRODUCTION)
-    const isDevMode = process.env.DEV_MODE === 'true';
-
     // Get user's current credits and tier
     const { data: userData, error: userError } = await supabase
       .from('users')
@@ -133,41 +130,37 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       };
     }
 
-    if (isDevMode) {
-      console.log('🔧 DEV MODE: Skipping credit checks. Cost would be:', cost, '| User credits:', userData.credits);
-    } else {
-      // Check if user has enough credits
-      if (userData.credits < cost) {
-        return {
-          statusCode: 402,
-          body: JSON.stringify({
-            error: 'Insufficient credits',
-            required: cost,
-            available: userData.credits,
-          }),
-        };
-      }
+    // Check if user has enough credits
+    if (userData.credits < cost) {
+      return {
+        statusCode: 402,
+        body: JSON.stringify({
+          error: 'Insufficient credits',
+          required: cost,
+          available: userData.credits,
+        }),
+      };
+    }
 
-      // Check free tier limits (1 game max)
-      if (userData.tier === 'free' && !isIteration && userData.games_created >= 1) {
-        return {
-          statusCode: 403,
-          body: JSON.stringify({
-            error: 'Free tier limit reached. Upgrade to create more games.',
-            limit: 1,
-          }),
-        };
-      }
+    // Check free tier limits (1 game max)
+    if (userData.tier === 'free' && !isIteration && userData.games_created >= 1) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({
+          error: 'Free tier limit reached. Upgrade to create more games.',
+          limit: 1,
+        }),
+      };
+    }
 
-      // Check if free tier is trying to iterate (not allowed)
-      if (userData.tier === 'free' && isIteration) {
-        return {
-          statusCode: 403,
-          body: JSON.stringify({
-            error: 'Game iteration is not available on the free tier. Upgrade to edit your games.',
-          }),
-        };
-      }
+    // Check if free tier is trying to iterate (not allowed)
+    if (userData.tier === 'free' && isIteration) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({
+          error: 'Game iteration is not available on the free tier. Upgrade to edit your games.',
+        }),
+      };
     }
 
     // 4. Call Gemini API
@@ -338,26 +331,22 @@ INSTRUCTIONS:
       };
     }
 
-    // 5. Deduct credits using the database function (skip in dev mode)
-    if (!isDevMode) {
-      const { data: deductSuccess, error: deductError } = await supabase.rpc('deduct_user_credits', {
-        user_uuid: user.id,
-        credit_amount: cost,
-        transaction_type: isIteration ? 'game_iteration' : 'game_generation',
-        transaction_description: isIteration
-          ? `Game iteration: ${prompt.substring(0, 50)}`
-          : `New game: ${parsed.suggestedTitle || prompt.substring(0, 50)}`,
-      });
+    // 5. Deduct credits using the database function
+    const { data: deductSuccess, error: deductError } = await supabase.rpc('deduct_user_credits', {
+      user_uuid: user.id,
+      credit_amount: cost,
+      transaction_type: isIteration ? 'game_iteration' : 'game_generation',
+      transaction_description: isIteration
+        ? `Game iteration: ${prompt.substring(0, 50)}`
+        : `New game: ${parsed.suggestedTitle || prompt.substring(0, 50)}`,
+    });
 
-      if (deductError || !deductSuccess) {
-        console.error('Failed to deduct credits:', deductError);
-        return {
-          statusCode: 500,
-          body: JSON.stringify({ error: 'Failed to deduct credits' }),
-        };
-      }
-    } else {
-      console.log('🔧 DEV MODE: Skipped credit deduction of', cost, 'credits');
+    if (deductError || !deductSuccess) {
+      console.error('Failed to deduct credits:', deductError);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Failed to deduct credits' }),
+      };
     }
 
     // 6. Increment games_created for new games (not iterations)

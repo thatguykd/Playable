@@ -73,14 +73,14 @@ export const PricingModal: React.FC<PricingModalProps> = ({ user, onClose, onUpd
                 <div className={`relative p-6 rounded-xl border ${user.tier === 'free' ? 'bg-gray-800/50 border-gray-600' : 'bg-gray-900 border-gray-800'} flex flex-col`}>
                     <div className="mb-4">
                         <h3 className="text-xl font-bold text-white">Starter</h3>
-                        <p className="text-gray-500 text-sm">For hobbyists</p>
+                        <p className="text-gray-500 text-sm">Testing Period - Try Everything!</p>
                     </div>
                     <div className="mb-6">
                         <span className="text-3xl font-bold text-white">Free</span>
                     </div>
                     <ul className="space-y-3 mb-8 flex-1">
                         <li className="flex items-center gap-2 text-sm text-gray-300"><Check size={16} className="text-green-500"/> 1 Game Project</li>
-                        <li className="flex items-center gap-2 text-sm text-gray-300"><Check size={16} className="text-green-500"/> 50 Initial Credits</li>
+                        <li className="flex items-center gap-2 text-sm text-gray-300"><Check size={16} className="text-green-500"/> 10,000 Initial Credits <span className="text-xs text-purple-400">(Testing Bonus!)</span></li>
                         <li className="flex items-center gap-2 text-sm text-gray-300"><Check size={16} className="text-green-500"/> Basic Models</li>
                         <li className="flex items-center gap-2 text-sm text-gray-500"><span className="w-4 h-4 block">✕</span> No Iterations</li>
                     </ul>
