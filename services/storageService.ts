@@ -4,8 +4,9 @@ import { supabase } from './supabaseClient';
 // Costs & Limits (kept as constants for easy configuration)
 export const COST_NEW_GAME = 50;
 export const COST_ITERATION = 10;
-// TEMPORARY: Increased for testing period - will revert to 1 before official launch
-export const LIMIT_FREE_GAMES = 200; // With 10,000 credits, users can create max 200 games (10000/50)
+// Note: Free tier game limit is now credit-based (credits / COST_NEW_GAME)
+// This constant is kept for backwards compatibility but should not be used for new limit checks
+export const LIMIT_FREE_GAMES = 200;
 
 // ==========================================
 // AUTH & USER MANAGEMENT
@@ -485,12 +486,81 @@ export const deactivateStudioSession = async (sessionId: string): Promise<void> 
   console.log('deactivateStudioSession called (stub):', sessionId);
 };
 
-export const getPlayHistory = async (limit: number): Promise<PublishedGame[]> => {
-  // Stub: Return empty array for now
-  return [];
+export const getPlayHistory = async (limit: number = 6): Promise<PublishedGame[]> => {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return [];
+
+    // Query play_history table with join to games table
+    const { data, error } = await supabase
+      .from('play_history')
+      .select(`
+        game_id,
+        last_played_at,
+        play_count,
+        games (*)
+      `)
+      .eq('user_id', user.id)
+      .order('last_played_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching play history:', error);
+      return [];
+    }
+
+    // Map to PublishedGame type
+    return data
+      .filter(row => row.games) // Filter out deleted games
+      .map((row: any) => {
+        const game = row.games;
+        return {
+          id: game.id,
+          title: game.title,
+          description: game.description,
+          author: game.author_name,
+          authorId: game.author_id || undefined,
+          html: game.html,
+          thumbnail: game.thumbnail || undefined,
+          category: game.category as PublishedGame['category'],
+          plays: game.plays,
+          isOfficial: game.is_official,
+          timestamp: new Date(game.created_at).getTime(),
+        };
+      });
+  } catch (error) {
+    console.error('Error fetching play history:', error);
+    return [];
+  }
 };
 
 export const recordGamePlay = async (gameId: string): Promise<void> => {
-  // Stub: Do nothing for now
-  console.log('recordGamePlay called (stub):', gameId);
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      // Only record for logged-in users
+      return;
+    }
+
+    // Get current session token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    // Call serverless function to record play
+    const response = await fetch('/.netlify/functions/record-play', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ gameId }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to record play:', await response.text());
+    }
+  } catch (error) {
+    console.error('Error recording game play:', error);
+    // Don't throw - this is a non-critical feature
+  }
 };

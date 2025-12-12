@@ -86,12 +86,14 @@ const App: React.FC = () => {
         console.log('🔍 Current user check:', currentUser ? 'User logged in' : 'No user');
         if (currentUser) {
           setUser(currentUser);
-          // Keep user on landing page unless there's a pending prompt
+          // Check if there's a pending prompt from landing page
           const hasPendingPrompt = localStorage.getItem('pendingGamePrompt');
           if (!hasPendingPrompt) {
-            console.log('✅ User is logged in - staying on landing page');
-            // Don't hide landing page - let user stay there
+            // FIX: Hide landing page for returning authenticated users
+            console.log('✅ User is logged in - hiding landing page');
+            setShowLanding(false);
           }
+          // If there IS a pending prompt, let onAuthStateChange handle it
           const savedIds = await getSavedGameIds();
           setSavedGameIds(savedIds);
 
@@ -198,6 +200,9 @@ const App: React.FC = () => {
             }, 500);
             // Clear the pending prompt
             localStorage.removeItem('pendingGamePrompt');
+          } else {
+            // FIX: Also hide landing page when user authenticates without pending prompt
+            setShowLanding(false);
           }
         } else {
           console.error('Failed to fetch user profile after authentication');
@@ -309,9 +314,9 @@ const App: React.FC = () => {
 
     // 2. Check Limits (Free Tier)
     const isNewGame = !gameData;
-    if (isNewGame && user.tier === 'free' && user.gamesCreated >= LIMIT_FREE_GAMES) {
-        setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: "Free Tier Limit Reached. Upgrade to create more games.", timestamp: Date.now() }]);
-        setPricingAction('upgrade');
+    if (isNewGame && user.tier === 'free' && user.credits < COST_NEW_GAME) {
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: `Insufficient credits. You need ${COST_NEW_GAME} credits to create a new game. Upgrade or wait for credit refills!`, timestamp: Date.now() }]);
+        setPricingAction('refill');
         setShowPricing(true);
         return;
     }
