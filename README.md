@@ -1,18 +1,23 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Playable
 
-# Run and deploy your AI Studio app
+**Playable** is a lightweight web application that lets users interact with playable content directly in the browser.
 
-This contains everything you need to run your app locally.
+It is designed to be fast, simple, and easy to use, with no downloads or installation required.
 
-## Run Locally
+## What it does
 
-**Prerequisites:**  Node.js
+- Runs interactive, playable content in a web page  
+- Works instantly in modern browsers  
+- Uses a modern frontend stack for smooth performance  
+- Can be deployed as a static site
 
+## Live Demo
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+https://playabledev.netlify.app/
+
+## Tech
+
+- TypeScript
+- Modern JavaScript
+- Frontend web technologies
+- Hosted on Netlify
