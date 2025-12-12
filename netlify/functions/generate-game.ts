@@ -142,13 +142,14 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       };
     }
 
-    // Check free tier limits (1 game max)
-    if (userData.tier === 'free' && !isIteration && userData.games_created >= 1) {
+    // Check free tier limits (TEMPORARY: 200 games max for testing period)
+    // Will revert to 1 game limit before official launch
+    if (userData.tier === 'free' && !isIteration && userData.games_created >= 200) {
       return {
         statusCode: 403,
         body: JSON.stringify({
           error: 'Free tier limit reached. Upgrade to create more games.',
-          limit: 1,
+          limit: 200,
         }),
       };
     }

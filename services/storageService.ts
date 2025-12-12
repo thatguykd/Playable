@@ -4,7 +4,8 @@ import { supabase } from './supabaseClient';
 // Costs & Limits (kept as constants for easy configuration)
 export const COST_NEW_GAME = 50;
 export const COST_ITERATION = 10;
-export const LIMIT_FREE_GAMES = 1;
+// TEMPORARY: Increased for testing period - will revert to 1 before official launch
+export const LIMIT_FREE_GAMES = 200; // With 10,000 credits, users can create max 200 games (10000/50)
 
 // ==========================================
 // AUTH & USER MANAGEMENT
