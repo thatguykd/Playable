@@ -196,13 +196,16 @@ const App: React.FC = () => {
             setShowAuth(false);
             // Add the prompt as a user message and trigger generation
             setTimeout(() => {
+              console.log('🚀 Auto-submitting pending prompt:', pendingPrompt);
               handleSendMessage(pendingPrompt);
-            }, 500);
+            }, 1000);  // Increased from 500ms to 1000ms for better reliability
             // Clear the pending prompt
             localStorage.removeItem('pendingGamePrompt');
+            localStorage.removeItem('pendingGameHasAttachment');  // Also clean up attachment flag
           } else {
             // FIX: Also hide landing page when user authenticates without pending prompt
             setShowLanding(false);
+            setShowAuth(false);  // Close auth modal when user logs in
           }
         } else {
           console.error('Failed to fetch user profile after authentication');
@@ -565,8 +568,9 @@ const App: React.FC = () => {
                 setView('studio');
                 // Add the prompt as a user message and trigger generation
                 setTimeout(() => {
+                  console.log('🚀 Auto-submitting pending prompt (from onEnter):', pendingPrompt);
                   handleSendMessage(pendingPrompt);
-                }, 500);
+                }, 1000);  // Increased from 500ms to 1000ms for consistency
                 // Clear the pending prompt
                 localStorage.removeItem('pendingGamePrompt');
                 localStorage.removeItem('pendingGameHasAttachment');

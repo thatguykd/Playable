@@ -19,7 +19,8 @@ BEGIN
       NEW.email
     ),
     NEW.raw_user_meta_data->>'avatar_url'
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;  -- Prevent duplicate key errors if trigger runs twice
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

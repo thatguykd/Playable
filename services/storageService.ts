@@ -87,11 +87,9 @@ export const signup = async (email: string, password: string, name: string): Pro
     if (error) throw error;
     if (!data.user) throw new Error('Signup failed - no user returned');
 
-    // Wait a moment for the trigger to create the profile
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Fetch user profile
-    const user = await getCurrentUser();
+    // Wait for the trigger to create the profile with retry logic
+    // This handles race conditions where the database trigger hasn't completed yet
+    const user = await getCurrentUserWithRetry();
     if (!user) throw new Error('Failed to fetch user profile');
 
     return user;
