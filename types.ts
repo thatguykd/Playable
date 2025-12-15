@@ -20,6 +20,12 @@ export interface GameVersion {
   timestamp: number;
 }
 
+export interface GenerationTask {
+  id: string;
+  name: string;
+  completed: boolean;
+}
+
 export type SubscriptionTier = 'free' | 'gamedev' | 'pro';
 
 export interface User {

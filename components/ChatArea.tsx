@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Message, GameStatus, GameVersion } from '../types';
-import { Send, Bot, User, Sparkles, History, FilePlus, Paperclip, Palette, X, ChevronDown, ArrowRight, Gamepad2 } from 'lucide-react';
+import { Message, GameStatus, GameVersion, GenerationTask } from '../types';
+import { Send, Bot, User, Sparkles, History, FilePlus, Paperclip, Palette, X, ChevronDown, ArrowRight, Gamepad2, CheckCircle2, Circle } from 'lucide-react';
 import { VersionHistory } from './VersionHistory';
 
 const designStyles = [
@@ -26,12 +26,13 @@ interface ChatAreaProps {
   onNewGame?: () => void;
   status: GameStatus;
   generationProgress?: string;
+  generationTasks?: GenerationTask[];
   gameVersions?: GameVersion[];
   currentVersion?: number;
   onRestoreVersion?: (version: GameVersion) => void;
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onNewGame, status, generationProgress, gameVersions = [], currentVersion = 0, onRestoreVersion }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onNewGame, status, generationProgress, generationTasks = [], gameVersions = [], currentVersion = 0, onRestoreVersion }) => {
   const [input, setInput] = React.useState('');
   const [showVersionDropdown, setShowVersionDropdown] = React.useState(false);
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
@@ -298,13 +299,33 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
               <Bot size={16} className="text-gray-400" />
             </div>
             <div className="bg-gray-900 text-gray-400 rounded-2xl rounded-tl-none p-4 border border-gray-800">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                 <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
                 <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
               </div>
+
+              {/* Task List */}
+              {generationTasks.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {generationTasks.map(task => (
+                    <div key={task.id} className="flex items-center gap-2 text-sm">
+                      {task.completed ? (
+                        <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                      ) : (
+                        <Circle size={14} className="text-gray-600 shrink-0" />
+                      )}
+                      <span className={task.completed ? 'text-gray-500 line-through' : 'text-indigo-400'}>
+                        {task.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Progress percentage */}
               {generationProgress && (
-                <div className="text-sm text-indigo-400/80 font-mono">
+                <div className="text-xs text-gray-500 font-mono">
                   {generationProgress}
                 </div>
               )}

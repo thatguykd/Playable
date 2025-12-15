@@ -10,7 +10,7 @@ import { Library } from './components/Library';
 import { AuthPage } from './components/AuthPage';
 import { PricingModal } from './components/PricingModal';
 import { SettingsPage } from './components/SettingsPage';
-import { Message, GameData, GameStatus, ViewMode, PublishedGame, LeaderboardEntry, User, GameVersion } from './types';
+import { Message, GameData, GameStatus, ViewMode, PublishedGame, LeaderboardEntry, User, GameVersion, GenerationTask } from './types';
 import { generateGame } from './services/geminiService';
 import {
     getPublishedGames,
@@ -56,6 +56,7 @@ const App: React.FC = () => {
   const [suggestedTitle, setSuggestedTitle] = useState('');
   const [suggestedDesc, setSuggestedDesc] = useState('');
   const [generationProgress, setGenerationProgress] = useState<string>('');
+  const [generationTasks, setGenerationTasks] = useState<GenerationTask[]>([]);
 
   // Version Control State
   const [sessionId, setSessionId] = useState<string>('');
@@ -333,6 +334,15 @@ const App: React.FC = () => {
       // Users stay on landing page after login - they can click "Create" or "Explore Games" when ready
   };
 
+  // Helper to update task completion status
+  const updateTask = (taskId: string, completed: boolean) => {
+    setGenerationTasks(prev =>
+      prev.map(task =>
+        task.id === taskId ? { ...task, completed } : task
+      )
+    );
+  };
+
   // SEND MESSAGE / GENERATE GAME
   const handleSendMessage = async (text: string) => {
     // 1. Check Auth
@@ -358,6 +368,15 @@ const App: React.FC = () => {
     setStatus(GameStatus.GENERATING);
     setGenerationProgress('Starting generation...');
 
+    // Initialize task list
+    setGenerationTasks([
+      { id: 'connect', name: 'Connecting to AI...', completed: false },
+      { id: 'parse', name: 'Parsing game concept...', completed: false },
+      { id: 'generate', name: 'Generating game code...', completed: false },
+      { id: 'process', name: 'Processing response...', completed: false },
+      { id: 'finalize', name: 'Finalizing...', completed: false },
+    ]);
+
     try {
       const existingHtml = gameData?.html;
       const isNewGame = !gameData;
@@ -374,11 +393,26 @@ const App: React.FC = () => {
         (status: string, progress?: number) => {
           // Update progress in real-time
           setGenerationProgress(status);
+
+          // Update tasks based on status message
+          if (status.includes('Connecting')) {
+            updateTask('connect', true);
+          } else if (status.includes('Generating')) {
+            updateTask('connect', true);
+            updateTask('parse', true);
+          } else if (status.includes('Processing response')) {
+            updateTask('generate', true);
+          } else if (status.includes('Processing payment')) {
+            updateTask('process', true);
+          } else if (status.includes('Finalizing')) {
+            updateTask('process', true);
+          }
         }
       );
 
       // Game generation complete - immediately update UI state
       setGenerationProgress('');  // CLEAR PROGRESS
+      setGenerationTasks([]);  // CLEAR TASKS
       setStatus(GameStatus.PLAYING);  // UPDATE STATUS FIRST
 
       const newVersion = (gameData?.version || 0) + 1;
@@ -779,6 +813,7 @@ const App: React.FC = () => {
                                 onNewGame={handleNewGame}
                                 status={status}
                                 generationProgress={generationProgress}
+                                generationTasks={generationTasks}
                                 gameVersions={gameVersions}
                                 currentVersion={gameData?.version || 0}
                                 onRestoreVersion={restoreVersion}
@@ -828,12 +863,13 @@ const App: React.FC = () => {
                                         />
                                     </div>
                                 </div>
-                                <Leaderboard entries={leaderboard} />
+                                <div className="relative">
+                                    <Leaderboard entries={leaderboard} />
 
-                                {/* Score Input Banner */}
-                                {showScoreInput && (
-                                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-                                      <div className="bg-gray-900/95 backdrop-blur border border-yellow-500/30 rounded-xl p-6 max-w-sm shadow-2xl">
+                                    {/* Score Input Banner - positioned at bottom of leaderboard */}
+                                    {showScoreInput && (
+                                        <div className="absolute bottom-4 right-4 z-50 animate-fade-in">
+                                          <div className="bg-gray-900/95 backdrop-blur border border-yellow-500/30 rounded-xl p-6 w-80 shadow-2xl">
                                         <div className="flex items-center gap-4 mb-4">
                                           <div className="w-12 h-12 bg-yellow-500/10 rounded-full flex items-center justify-center text-yellow-500 border border-yellow-500/20">
                                             <Layers size={24} />
@@ -891,6 +927,7 @@ const App: React.FC = () => {
                                       </div>
                                     </div>
                                 )}
+                                </div>
                             </>
                         ) : (
                             <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-8 overflow-y-auto">
