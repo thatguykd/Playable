@@ -142,15 +142,8 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       };
     }
 
-    // Check if free tier is trying to iterate (not allowed)
-    if (userData.tier === 'free' && isIteration) {
-      return {
-        statusCode: 403,
-        body: JSON.stringify({
-          error: 'Game iteration is not available on the free tier. Upgrade to edit your games.',
-        }),
-      };
-    }
+    // Credit check above already validates if user can afford iteration (10 credits)
+    // No tier restriction - all tiers can iterate if they have credits
 
     // 4. Call Gemini API
     if (!geminiApiKey) {

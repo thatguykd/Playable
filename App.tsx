@@ -325,14 +325,8 @@ const App: React.FC = () => {
         return;
     }
 
-    if (!isNewGame && user.tier === 'free') {
-         setMessages(prev => [...prev, { id: uuidv4(), role: 'model', text: "Iterations are a Pro feature. Upgrade to edit this game.", timestamp: Date.now() }]);
-         setPricingAction('upgrade');
-         setShowPricing(true);
-         return;
-    }
-
     // Note: Credit checking and deduction is now handled by the backend API
+    // Iterations cost 10 credits - backend will check if user has enough
 
     const newUserMsg: Message = { id: uuidv4(), role: 'user', text, timestamp: Date.now() };
     setMessages((prev) => [...prev, newUserMsg]);

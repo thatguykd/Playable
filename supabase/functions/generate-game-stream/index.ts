@@ -169,7 +169,8 @@ serve(async (req) => {
       );
     }
 
-    // Check if user has enough credits
+    // Check if user has enough credits (applies to all tiers)
+    // New game costs 50 credits, iteration costs 10 credits
     if (userData.credits < cost) {
       return new Response(
         JSON.stringify({
@@ -178,16 +179,6 @@ serve(async (req) => {
           available: userData.credits,
         }),
         { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check if free tier is trying to iterate (not allowed)
-    if (userData.tier === 'free' && isIteration) {
-      return new Response(
-        JSON.stringify({
-          error: 'Game iteration is not available on the free tier. Upgrade to edit your games.',
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
