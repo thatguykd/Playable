@@ -17,7 +17,7 @@ export const generateGame = async (
   currentHistory: Message[],
   prompt: string,
   existingHtml?: string,
-  onProgress?: (status: string, chunk?: string) => void
+  onProgress?: (status: string, progress?: number) => void
 ): Promise<GenAIResponse> => {
   try {
     // Get the current session token for authentication
@@ -111,8 +111,10 @@ export const generateGame = async (
               // Status update
               onProgress?.(data.message);
             } else if (data.type === 'chunk') {
-              // Progress chunk from Claude
-              onProgress?.(data.accumulated || 'Generating...', data.text);
+              // Progress chunk from Claude (don't show code, just progress %)
+              if (data.progress !== undefined) {
+                onProgress?.(`Generating... ${data.progress}%`, data.progress);
+              }
             } else if (data.type === 'complete') {
               // Final complete response
               finalResult = {

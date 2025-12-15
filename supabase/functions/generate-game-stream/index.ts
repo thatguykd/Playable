@@ -252,11 +252,10 @@ INSTRUCTIONS:
               const text = chunk.delta.text;
               fullResponse += text;
 
-              // Send progress chunk to client
+              // Send progress chunk to client (don't show code, just progress %)
               sendSSE(controller, {
                 type: 'chunk',
-                text: text,
-                accumulated: fullResponse.substring(0, 500), // Preview of accumulated text
+                progress: Math.min(100, Math.floor((fullResponse.length / 5000) * 100))
               });
             }
           }
@@ -297,29 +296,75 @@ INSTRUCTIONS:
             parsed.html += SCREENSHOT_SCRIPT;
           }
 
-          // Deduct credits using the database function
-          sendSSE(controller, { type: 'status', message: 'Finalizing...' });
+          // 1. DEDUCT CREDITS FIRST (before Finalizing status)
+          sendSSE(controller, { type: 'status', message: 'Processing payment...' });
 
-          const { data: deductSuccess, error: deductError } = await supabase.rpc('deduct_user_credits', {
-            user_uuid: user.id,
-            credit_amount: cost,
-            transaction_type: isIteration ? 'game_iteration' : 'game_generation',
-            transaction_description: isIteration
-              ? `Game iteration: ${prompt.substring(0, 50)}`
-              : `New game: ${parsed.suggestedTitle || prompt.substring(0, 50)}`,
-          });
+          let creditsDeducted = false;
+          let retries = 0;
+          const maxRetries = 2;
 
-          if (deductError || !deductSuccess) {
-            console.error('Failed to deduct credits:', deductError);
-            throw new Error('Failed to deduct credits');
+          while (!creditsDeducted && retries <= maxRetries) {
+            try {
+              const { data: deductSuccess, error: deductError } = await supabase.rpc('deduct_user_credits', {
+                user_uuid: user.id,
+                credit_amount: cost,
+                transaction_type: isIteration ? 'game_iteration' : 'game_generation',
+                transaction_description: isIteration
+                  ? `Game iteration: ${prompt.substring(0, 50)}`
+                  : `New game: ${parsed.suggestedTitle || prompt.substring(0, 50)}`,
+              });
+
+              if (deductError) {
+                throw new Error(`RPC error: ${deductError.message}`);
+              }
+
+              if (!deductSuccess) {
+                throw new Error('RPC returned falsy value');
+              }
+
+              creditsDeducted = true;
+            } catch (rpcError: any) {
+              retries++;
+              console.error(`Credit deduction attempt ${retries} failed:`, rpcError);
+
+              if (retries > maxRetries) {
+                // After max retries, log error but don't block game delivery
+                console.error('CRITICAL: Failed to deduct credits after retries. Manual reconciliation needed.');
+                console.error('User ID:', user.id, 'Cost:', cost);
+
+                // Send game anyway with error flag
+                sendSSE(controller, {
+                  type: 'complete',
+                  message: parsed.message,
+                  html: parsed.html,
+                  suggestedTitle: parsed.suggestedTitle,
+                  suggestedDescription: parsed.suggestedDescription,
+                  creditsDeducted: 0,  // Indicate credits weren't deducted
+                  creditsRemaining: userData.credits,  // Show original balance
+                  paymentError: true,  // Flag for manual review
+                });
+
+                controller.close();
+                return; // Exit early
+              }
+
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 500 * retries));
+            }
           }
+
+          // 2. NOW send Finalizing status
+          sendSSE(controller, { type: 'status', message: 'Finalizing...' });
 
           // Increment games_created for new games (not iterations)
           if (!isIteration) {
-            await supabase
+            // Don't await - fire and forget, don't block on this
+            supabase
               .from('users')
               .update({ games_created: userData.games_created + 1 })
-              .eq('id', user.id);
+              .eq('id', user.id)
+              .then(() => console.log('Updated games_created'))
+              .catch(err => console.error('Failed to update games_created:', err));
           }
 
           // Send final complete event

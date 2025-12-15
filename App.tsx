@@ -352,11 +352,15 @@ const App: React.FC = () => {
         messages.concat(newUserMsg),
         text,
         existingHtml,
-        (status: string, chunk?: string) => {
+        (status: string, progress?: number) => {
           // Update progress in real-time
           setGenerationProgress(status);
         }
       );
+
+      // Game generation complete - immediately update UI state
+      setGenerationProgress('');  // CLEAR PROGRESS
+      setStatus(GameStatus.PLAYING);  // UPDATE STATUS FIRST
 
       const newVersion = (gameData?.version || 0) + 1;
       setMessages((prev) => [...prev, { id: uuidv4(), role: 'model', text: response.message, timestamp: Date.now() }]);
@@ -383,7 +387,7 @@ const App: React.FC = () => {
         setUser(updatedUser);
       }
 
-      setStatus(GameStatus.PLAYING);
+      // Status already set to PLAYING above (no longer needed here)
     } catch (error: any) {
       console.error(error);
       const errorMessage = error.message || "Error generating game.";
