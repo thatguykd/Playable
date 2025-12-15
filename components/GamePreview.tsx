@@ -10,6 +10,7 @@ interface GamePreviewProps {
   suggestedTitle?: string;
   suggestedDescription?: string;
   readOnly?: boolean;
+  onPublishSuccess?: () => void;
 }
 
 const LOADING_MESSAGES = [
@@ -29,19 +30,19 @@ const LOADING_MESSAGES = [
   "Loading unskippable cutscenes..."
 ];
 
-export const GamePreview: React.FC<GamePreviewProps> = ({ 
-  gameData, 
-  status, 
+export const GamePreview: React.FC<GamePreviewProps> = ({
+  gameData,
+  status,
   suggestedTitle,
   suggestedDescription,
-  readOnly = false 
+  readOnly = false,
+  onPublishSuccess
 }) => {
   const [iframeKey, setIframeKey] = useState(0);
   const [showCode, setShowCode] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [showScoreModal, setShowScoreModal] = useState(false);
-  const [pendingScore, setPendingScore] = useState<number>(0);
-  
+  const [showPublishSuccess, setShowPublishSuccess] = useState(false);
+
   // Publish Form State
   const [publishTitle, setPublishTitle] = useState('');
   const [publishDesc, setPublishDesc] = useState('');
@@ -97,11 +98,6 @@ export const GamePreview: React.FC<GamePreviewProps> = ({
     const handleMessage = (event: MessageEvent) => {
       if (!event.data) return;
 
-      if (event.data.type === 'GAME_OVER') {
-        setPendingScore(Number(event.data.score));
-        setShowScoreModal(true);
-      }
-      
       if (event.data.type === 'SCREENSHOT' && event.data.image) {
         setCapturedScreenshot(event.data.image);
       }
@@ -131,7 +127,15 @@ export const GamePreview: React.FC<GamePreviewProps> = ({
       });
 
       setShowPublishModal(false);
-      alert('Game Published Successfully!');
+      setShowPublishSuccess(true);
+
+      // Refresh games list
+      if (onPublishSuccess) {
+        onPublishSuccess();
+      }
+
+      // Auto-hide success banner after 3 seconds
+      setTimeout(() => setShowPublishSuccess(false), 3000);
     } catch (error) {
       console.error('Failed to publish game:', error);
       alert('Failed to publish game. Please try again.');
@@ -356,26 +360,19 @@ export const GamePreview: React.FC<GamePreviewProps> = ({
         </div>
       )}
 
-      {/* Score Modal */}
-      {showScoreModal && !readOnly && (
-         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-            <div className="bg-gray-900/90 backdrop-blur border border-indigo-500/30 pl-4 pr-6 py-3 rounded-full shadow-2xl flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(79,70,229,0.5)]">
-                    <Trophy size={18} fill="currentColor" />
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider leading-none mb-1">Session Score</span>
-                    <span className="text-xl font-mono text-white font-bold leading-none">{pendingScore}</span>
-                </div>
-                <div className="h-8 w-px bg-gray-700 mx-2"></div>
-                <button 
-                    onClick={() => setShowScoreModal(false)}
-                    className="text-gray-400 hover:text-white transition-colors text-xs font-medium"
-                >
-                    Dismiss
-                </button>
+      {/* Publish Success Banner */}
+      {showPublishSuccess && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-fade-in">
+          <div className="bg-green-600/90 backdrop-blur border border-green-500/50 px-8 py-4 rounded-xl shadow-2xl flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+              <Share2 size={24} className="text-white" />
             </div>
-         </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Published Successfully!</h3>
+              <p className="text-sm text-white/80">Your game is now live on Discover</p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

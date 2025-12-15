@@ -4,6 +4,7 @@ import { Send, Bot, User, Sparkles, History, FilePlus, Paperclip, Palette, X, Ch
 import { VersionHistory } from './VersionHistory';
 
 const designStyles = [
+  { id: 'default', name: 'Default', description: 'Adaptive style that fits the game theme' },
   { id: 'neon', name: 'Neon Style', description: 'Vibrant neon colors with glowing effects' },
   { id: 'colorful', name: 'Colorful', description: 'Bright and playful color palette' },
   { id: 'mystical', name: 'Mystical', description: 'Dark and mysterious aesthetic' },
@@ -130,9 +131,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
 
     let fullPrompt = input.trim();
     // Add design style to prompt if not default
-    if (selectedDesign.id !== 'neon') {
+    if (selectedDesign.id === 'neon') {
+      fullPrompt += ` (Style: Use a dark, neon, cyberpunk aesthetic with glowing effects)`;
+    } else if (selectedDesign.id !== 'default') {
       fullPrompt += ` (Style: ${selectedDesign.name})`;
     }
+    // Default style: AI chooses style fitting to the game
 
     onSendMessage(fullPrompt);
     setInput('');

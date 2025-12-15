@@ -171,6 +171,14 @@ const App: React.FC = () => {
 
     initializeApp();
 
+    // Poll for game updates every 30 seconds when on feed view
+    const pollInterval = setInterval(async () => {
+      if (view === 'feed') {
+        const games = await getPublishedGames();
+        setPublishedGames(games);
+      }
+    }, 30000); // 30 seconds
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
@@ -204,8 +212,7 @@ const App: React.FC = () => {
             localStorage.removeItem('pendingGamePrompt');
             localStorage.removeItem('pendingGameHasAttachment');  // Also clean up attachment flag
           } else {
-            // FIX: Also hide landing page when user authenticates without pending prompt
-            setShowLanding(false);
+            // User authenticated without pending prompt - keep them on landing page
             setShowAuth(false);  // Close auth modal when user logs in
           }
         } else {
@@ -221,8 +228,9 @@ const App: React.FC = () => {
 
     return () => {
       subscription.unsubscribe();
+      clearInterval(pollInterval);
     };
-  }, []);
+  }, [view]);
 
   // Update saved games list
   useEffect(() => {
@@ -234,6 +242,12 @@ const App: React.FC = () => {
     };
     loadSavedGames();
   }, [view, savedGameIds]);
+
+  // Refresh published games list (called after publishing)
+  const refreshPublishedGames = async () => {
+    const games = await getPublishedGames();
+    setPublishedGames(games);
+  };
 
   // AUTO-SAVE STUDIO SESSION
   useEffect(() => {
@@ -302,10 +316,7 @@ const App: React.FC = () => {
       setShowAuth(false);
       const savedIds = await getSavedGameIds();
       setSavedGameIds(savedIds);
-      // If user logs in from landing page, enter the app
-      if (showLanding) {
-          setShowLanding(false);
-      }
+      // Users stay on landing page after login - they can click "Create" or "Explore Games" when ready
   };
 
   // SEND MESSAGE / GENERATE GAME
@@ -474,12 +485,30 @@ const App: React.FC = () => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[saveGameVersion] Failed to save game version:', response.status, errorText);
+
+        // If 502/500 error (server configuration issue), show user-friendly message
+        if (response.status === 502 || response.status === 500) {
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.message?.includes('Supabase credentials') || errorData.error?.includes('configuration')) {
+              setMessages(prev => [...prev, {
+                id: uuidv4(),
+                role: 'model',
+                text: 'Version history temporarily unavailable, but your game is working fine!',
+                timestamp: Date.now()
+              }]);
+            }
+          } catch (e) {
+            // Error parsing JSON, silently continue
+          }
+        }
       } else {
         const data = await response.json();
         console.log('[saveGameVersion] Successfully saved version:', data);
       }
     } catch (error) {
       console.error('[saveGameVersion] Error saving game version:', error);
+      // Don't block game generation - version history is optional
     }
   };
 
@@ -526,9 +555,15 @@ const App: React.FC = () => {
       } else {
         const errorText = await response.text();
         console.error('[fetchGameVersions] Failed to fetch versions:', response.status, errorText);
+
+        // Silently fail on 502/500 - version history is optional, don't show error to user
+        if (response.status === 502 || response.status === 500) {
+          return; // Just log and return, don't disrupt UX
+        }
       }
     } catch (error) {
       console.error('[fetchGameVersions] Error fetching game versions:', error);
+      // Silently fail - version history is optional
     }
   };
 
@@ -736,11 +771,12 @@ const App: React.FC = () => {
                             />
                         </div>
                         <div className="flex-1 h-full hidden md:block">
-                            <GamePreview 
-                                gameData={gameData} 
-                                status={status} 
+                            <GamePreview
+                                gameData={gameData}
+                                status={status}
                                 suggestedTitle={suggestedTitle}
                                 suggestedDescription={suggestedDesc}
+                                onPublishSuccess={refreshPublishedGames}
                             />
                         </div>
                     </>
@@ -780,39 +816,85 @@ const App: React.FC = () => {
                                 </div>
                                 <Leaderboard entries={leaderboard} />
 
-                                {/* Score Input Overlay */}
-                                {showScoreInput && (
-                                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                                        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
-                                            <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-500 border border-yellow-500/20">
-                                                <Layers size={32} />
-                                            </div>
-                                            <h3 className="text-2xl font-bold text-white mb-1">New Score!</h3>
-                                            <p className="text-4xl font-mono font-bold text-indigo-400 mb-6">{tempScore}</p>
+                                {/* SPACE key restart handler - defined inline within this scope */}
+                                {React.useEffect(() => {
+                                  if (!showScoreInput || !activeGame) return;
 
-                                            {!user ? (
-                                                <div className="text-center">
-                                                    <p className="text-gray-500 text-sm mb-4">Sign in to save your score to the leaderboard.</p>
-                                                    <button onClick={() => { setShowScoreInput(false); setShowAuth(true); }} className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold">Sign In</button>
-                                                </div>
-                                            ) : (
-                                                <form onSubmit={submitScore}>
-                                                    <input
-                                                        type="text"
-                                                        required
-                                                        maxLength={12}
-                                                        placeholder="Enter your name"
-                                                        value={playerName || user.name}
-                                                        onChange={e => setPlayerName(e.target.value)}
-                                                        className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-white text-center mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                                    />
-                                                    <div className="flex gap-2">
-                                                        <button type="button" onClick={() => setShowScoreInput(false)} className="flex-1 py-3 text-sm text-gray-400 hover:text-white transition-colors">Skip</button>
-                                                        <button type="submit" className="flex-[2] py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all shadow-lg shadow-indigo-600/20">Save Score</button>
-                                                    </div>
-                                                </form>
-                                            )}
+                                  const handleKeyPress = (e: KeyboardEvent) => {
+                                    if (e.code === 'Space') {
+                                      e.preventDefault();
+                                      setShowScoreInput(false);
+                                      // Reload game iframe
+                                      const iframe = document.querySelector('iframe');
+                                      if (iframe) {
+                                        iframe.src = iframe.src; // Force reload
+                                      }
+                                    }
+                                  };
+
+                                  window.addEventListener('keydown', handleKeyPress);
+                                  return () => window.removeEventListener('keydown', handleKeyPress);
+                                }, [showScoreInput, activeGame]) && null}
+
+                                {/* Score Input Banner */}
+                                {showScoreInput && (
+                                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+                                      <div className="bg-gray-900/95 backdrop-blur border border-yellow-500/30 rounded-xl p-6 max-w-sm shadow-2xl">
+                                        <div className="flex items-center gap-4 mb-4">
+                                          <div className="w-12 h-12 bg-yellow-500/10 rounded-full flex items-center justify-center text-yellow-500 border border-yellow-500/20">
+                                            <Layers size={24} />
+                                          </div>
+                                          <div>
+                                            <h3 className="text-lg font-bold text-white">New Score!</h3>
+                                            <p className="text-2xl font-mono font-bold text-indigo-400">{tempScore}</p>
+                                          </div>
                                         </div>
+
+                                        {!user ? (
+                                          <div>
+                                            <p className="text-gray-400 text-sm mb-3">Sign in to save your score.</p>
+                                            <button
+                                              onClick={() => { setShowScoreInput(false); setShowAuth(true); }}
+                                              className="w-full py-2 bg-indigo-600 text-white rounded-lg font-medium text-sm"
+                                            >
+                                              Sign In
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <form onSubmit={submitScore}>
+                                            <input
+                                              type="text"
+                                              required
+                                              maxLength={12}
+                                              placeholder="Your name"
+                                              value={playerName || user.name}
+                                              onChange={e => setPlayerName(e.target.value)}
+                                              className="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm mb-3 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            />
+                                            <div className="flex gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => setShowScoreInput(false)}
+                                                className="flex-1 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                                              >
+                                                Skip
+                                              </button>
+                                              <button
+                                                type="submit"
+                                                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-sm"
+                                              >
+                                                Save
+                                              </button>
+                                            </div>
+                                          </form>
+                                        )}
+
+                                        <div className="mt-3 pt-3 border-t border-gray-800 text-center">
+                                          <p className="text-xs text-gray-500">
+                                            Press <kbd className="px-2 py-0.5 bg-gray-800 rounded text-gray-300 font-mono">SPACE</kbd> to restart
+                                          </p>
+                                        </div>
+                                      </div>
                                     </div>
                                 )}
                             </>

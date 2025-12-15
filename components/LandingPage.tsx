@@ -20,6 +20,7 @@ const gameExamples = [
 ];
 
 const designStyles = [
+  { id: 'default', name: 'Default', description: 'Adaptive style that fits the game theme' },
   { id: 'neon', name: 'Neon Style', description: 'Vibrant neon colors with glowing effects' },
   { id: 'colorful', name: 'Colorful', description: 'Bright and playful color palette' },
   { id: 'mystical', name: 'Mystical', description: 'Dark and mysterious aesthetic' },
@@ -95,10 +96,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter, onSignIn, onS
     if (!promptInput.trim()) return;
 
     let fullPrompt = promptInput.trim();
-    // Add design style to prompt
-    if (selectedDesign.id !== 'neon') {
+    // Add design style to prompt if not default
+    if (selectedDesign.id === 'neon') {
+      fullPrompt += ` (Style: Use a dark, neon, cyberpunk aesthetic with glowing effects)`;
+    } else if (selectedDesign.id !== 'default') {
       fullPrompt += ` (Style: ${selectedDesign.name})`;
     }
+    // Default style: AI chooses style fitting to the game
 
     if (user) {
       // User is already logged in - go directly to studio with prompt
