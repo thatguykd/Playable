@@ -87,14 +87,8 @@ const App: React.FC = () => {
         console.log('🔍 Current user check:', currentUser ? 'User logged in' : 'No user');
         if (currentUser) {
           setUser(currentUser);
-          // Check if there's a pending prompt from landing page
-          const hasPendingPrompt = localStorage.getItem('pendingGamePrompt');
-          if (!hasPendingPrompt) {
-            // FIX: Hide landing page for returning authenticated users
-            console.log('✅ User is logged in - hiding landing page');
-            setShowLanding(false);
-          }
-          // If there IS a pending prompt, let onAuthStateChange handle it
+          // Users stay on landing page - they can click to enter when ready
+          // Only auto-hide landing page if there's a pending game prompt (handled in auth listener)
           const savedIds = await getSavedGameIds();
           setSavedGameIds(savedIds);
 
@@ -300,6 +294,26 @@ const App: React.FC = () => {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [view, activeGame]);
+
+  // SPACE key to restart game when score modal is showing
+  useEffect(() => {
+    if (!showScoreInput || !activeGame) return;
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setShowScoreInput(false);
+        // Reload game iframe
+        const iframe = document.querySelector('iframe');
+        if (iframe) {
+          iframe.src = iframe.src; // Force reload
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showScoreInput, activeGame]);
 
   // LOGOUT
   const handleLogout = async () => {
@@ -815,26 +829,6 @@ const App: React.FC = () => {
                                     </div>
                                 </div>
                                 <Leaderboard entries={leaderboard} />
-
-                                {/* SPACE key restart handler - defined inline within this scope */}
-                                {React.useEffect(() => {
-                                  if (!showScoreInput || !activeGame) return;
-
-                                  const handleKeyPress = (e: KeyboardEvent) => {
-                                    if (e.code === 'Space') {
-                                      e.preventDefault();
-                                      setShowScoreInput(false);
-                                      // Reload game iframe
-                                      const iframe = document.querySelector('iframe');
-                                      if (iframe) {
-                                        iframe.src = iframe.src; // Force reload
-                                      }
-                                    }
-                                  };
-
-                                  window.addEventListener('keydown', handleKeyPress);
-                                  return () => window.removeEventListener('keydown', handleKeyPress);
-                                }, [showScoreInput, activeGame]) && null}
 
                                 {/* Score Input Banner */}
                                 {showScoreInput && (
