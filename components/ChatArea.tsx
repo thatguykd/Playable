@@ -24,12 +24,13 @@ interface ChatAreaProps {
   onSendMessage: (text: string) => void;
   onNewGame?: () => void;
   status: GameStatus;
+  generationProgress?: string;
   gameVersions?: GameVersion[];
   currentVersion?: number;
   onRestoreVersion?: (version: GameVersion) => void;
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onNewGame, status, gameVersions = [], currentVersion = 0, onRestoreVersion }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onNewGame, status, generationProgress, gameVersions = [], currentVersion = 0, onRestoreVersion }) => {
   const [input, setInput] = React.useState('');
   const [showVersionDropdown, setShowVersionDropdown] = React.useState(false);
   const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
@@ -292,10 +293,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
             <div className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center shrink-0 mt-1">
               <Bot size={16} className="text-gray-400" />
             </div>
-            <div className="bg-gray-900 text-gray-400 rounded-2xl rounded-tl-none p-4 border border-gray-800 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+            <div className="bg-gray-900 text-gray-400 rounded-2xl rounded-tl-none p-4 border border-gray-800">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+              </div>
+              {generationProgress && (
+                <div className="text-sm text-indigo-400/80 font-mono">
+                  {generationProgress}
+                </div>
+              )}
             </div>
           </div>
         )}

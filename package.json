@@ -17,6 +17,7 @@
     "db:types": "supabase gen types typescript --local > types/database.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@google/genai": "^1.30.0",
     "@stripe/stripe-js": "^2.4.0",
     "@supabase/supabase-js": "^2.39.7",

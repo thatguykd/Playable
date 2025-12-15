@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<GameStatus>(GameStatus.IDLE);
   const [suggestedTitle, setSuggestedTitle] = useState('');
   const [suggestedDesc, setSuggestedDesc] = useState('');
+  const [generationProgress, setGenerationProgress] = useState<string>('');
 
   // Version Control State
   const [sessionId, setSessionId] = useState<string>('');
@@ -336,6 +337,7 @@ const App: React.FC = () => {
     const newUserMsg: Message = { id: uuidv4(), role: 'user', text, timestamp: Date.now() };
     setMessages((prev) => [...prev, newUserMsg]);
     setStatus(GameStatus.GENERATING);
+    setGenerationProgress('Starting generation...');
 
     try {
       const existingHtml = gameData?.html;
@@ -346,7 +348,15 @@ const App: React.FC = () => {
         setSessionId(uuidv4());
       }
 
-      const response = await generateGame(messages.concat(newUserMsg), text, existingHtml);
+      const response = await generateGame(
+        messages.concat(newUserMsg),
+        text,
+        existingHtml,
+        (status: string, chunk?: string) => {
+          // Update progress in real-time
+          setGenerationProgress(status);
+        }
+      );
 
       const newVersion = (gameData?.version || 0) + 1;
       setMessages((prev) => [...prev, { id: uuidv4(), role: 'model', text: response.message, timestamp: Date.now() }]);
@@ -721,6 +731,7 @@ const App: React.FC = () => {
                                 onSendMessage={handleSendMessage}
                                 onNewGame={handleNewGame}
                                 status={status}
+                                generationProgress={generationProgress}
                                 gameVersions={gameVersions}
                                 currentVersion={gameData?.version || 0}
                                 onRestoreVersion={restoreVersion}
