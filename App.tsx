@@ -84,8 +84,7 @@ const App: React.FC = () => {
         setPublishedGames(games);
 
         // Check for existing user session with retry logic
-        // Pass createIfMissing=false here since we're just checking, not creating
-        const currentUser = await getCurrentUserWithRetry(false);
+        const currentUser = await getCurrentUserWithRetry();
         console.log('🔍 Current user check:', currentUser ? 'User logged in' : 'No user');
         if (currentUser) {
           setUser(currentUser);
@@ -181,8 +180,7 @@ const App: React.FC = () => {
         // User logged in - refresh user data with retry logic
         // This handles race conditions where database trigger creating user profile
         // hasn't completed yet (common with OAuth flows)
-        // Pass createIfMissing=true to enable fallback manual creation if trigger fails
-        const currentUser = await getCurrentUserWithRetry(true);
+        const currentUser = await getCurrentUserWithRetry();
         if (currentUser) {
           setUser(currentUser);
           const savedIds = await getSavedGameIds();
@@ -213,9 +211,7 @@ const App: React.FC = () => {
             setShowAuth(false);  // Close auth modal when user logs in
           }
         } else {
-          console.error('Failed to fetch/create user profile after authentication');
-          // Show error to user
-          alert('There was an issue creating your account. Please try signing in again or contact support if the problem persists.');
+          console.error('Failed to fetch user profile after authentication');
         }
       } else {
         // User logged out

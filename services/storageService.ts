@@ -18,9 +18,6 @@ export const getCurrentUser = async (): Promise<User | null> => {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session) {
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-      }
       return null;
     }
 
@@ -31,17 +28,7 @@ export const getCurrentUser = async (): Promise<User | null> => {
       .eq('id', session.user.id)
       .single();
 
-    if (userError) {
-      console.error('Error fetching user profile from database:', userError);
-      // If user doesn't exist (PGRST116 = no rows returned), this might mean trigger didn't run
-      if (userError.code === 'PGRST116') {
-        console.warn('User profile not found in database - trigger may not have run');
-      }
-      return null;
-    }
-
-    if (!userData) {
-      console.warn('No user data returned from database query');
+    if (userError || !userData) {
       return null;
     }
 
@@ -72,12 +59,9 @@ export const login = async (email: string, password: string): Promise<User> => {
 
     if (error) throw error;
 
-    // Fetch user profile with retry and fallback
-    const user = await getCurrentUserWithRetry(true);
-    if (!user) {
-      console.error('Failed to fetch/create user profile after login');
-      throw new Error('Failed to fetch user profile. Please try again or contact support.');
-    }
+    // Fetch user profile
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Failed to fetch user profile');
 
     return user;
   } catch (error: any) {
@@ -105,12 +89,8 @@ export const signup = async (email: string, password: string, name: string): Pro
 
     // Wait for the trigger to create the profile with retry logic
     // This handles race conditions where the database trigger hasn't completed yet
-    // Pass createIfMissing=true to enable fallback manual creation if trigger fails
-    const user = await getCurrentUserWithRetry(true);
-    if (!user) {
-      console.error('Failed to fetch/create user profile after signup');
-      throw new Error('Failed to create user profile. Please try again or contact support.');
-    }
+    const user = await getCurrentUserWithRetry();
+    if (!user) throw new Error('Failed to fetch user profile');
 
     return user;
   } catch (error: any) {
@@ -467,111 +447,15 @@ export const getSavedGames = async (): Promise<PublishedGame[]> => {
 // USER PREFERENCES & SESSION MANAGEMENT (STUBS)
 // ==========================================
 
-// Helper function to manually create user profile if trigger failed
-const createUserProfileManually = async (userId: string, email: string, metadata?: any): Promise<User | null> => {
-  try {
-    console.log('Attempting to manually create user profile...');
-    const { data: userData, error } = await supabase
-      .from('users')
-      .insert({
-        id: userId,
-        email: email,
-        name: metadata?.name || metadata?.full_name || email.split('@')[0],
-        avatar: metadata?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      // Check if it's a duplicate key error (user already exists)
-      if (error.code === '23505') {
-        console.log('User profile already exists, fetching...');
-        // Try to fetch the existing user
-        const { data: existingUser, error: fetchError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .single();
-        
-        if (fetchError || !existingUser) {
-          console.error('Failed to fetch existing user after duplicate key error:', fetchError);
-          return null;
-        }
-
-        return {
-          id: existingUser.id,
-          email: existingUser.email,
-          name: existingUser.name,
-          avatar: existingUser.avatar || undefined,
-          tier: existingUser.tier as SubscriptionTier,
-          credits: existingUser.credits,
-          gamesCreated: existingUser.games_created,
-          joinedAt: new Date(existingUser.joined_at).getTime(),
-        };
-      }
-      console.error('Error manually creating user profile:', error);
-      return null;
-    }
-
-    if (!userData) {
-      console.error('No user data returned after manual creation');
-      return null;
-    }
-
-    console.log('Successfully created user profile manually');
-    return {
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-      avatar: userData.avatar || undefined,
-      tier: userData.tier as SubscriptionTier,
-      credits: userData.credits,
-      gamesCreated: userData.games_created,
-      joinedAt: new Date(userData.joined_at).getTime(),
-    };
-  } catch (error) {
-    console.error('Exception while manually creating user profile:', error);
-    return null;
-  }
-};
-
-export const getCurrentUserWithRetry = async (createIfMissing: boolean = true): Promise<User | null> => {
-  // Enhanced retry logic with more attempts and longer delays
-  // This handles race conditions where database trigger hasn't completed yet
+export const getCurrentUserWithRetry = async (): Promise<User | null> => {
+  // Simple retry logic for getCurrentUser
   let attempts = 0;
-  const maxAttempts = 8; // Increased from 3
-  const baseDelay = 250; // Start with 250ms
-
-  while (attempts < maxAttempts) {
+  while (attempts < 3) {
     const user = await getCurrentUser();
     if (user) return user;
-    
     attempts++;
-    
-    // Exponential backoff: 250ms, 500ms, 1000ms, 1500ms, etc.
-    const delay = Math.min(baseDelay * Math.pow(2, attempts - 1), 2000);
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
-
-  // If still no user after retries and createIfMissing is true, try manual creation
-  if (createIfMissing) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        console.log('Trigger may have failed, attempting manual user profile creation...');
-        const metadata = session.user.user_metadata || {};
-        const user = await createUserProfileManually(
-          session.user.id,
-          session.user.email || '',
-          metadata
-        );
-        if (user) return user;
-      }
-    } catch (error) {
-      console.error('Error in manual user profile creation fallback:', error);
-    }
-  }
-
   return null;
 };
 
