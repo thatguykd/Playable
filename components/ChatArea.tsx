@@ -4,13 +4,28 @@ import { Send, Bot, User, Sparkles, History, FilePlus, Paperclip, Palette, X, Ch
 import { VersionHistory } from './VersionHistory';
 
 const designStyles = [
-  { id: 'default', name: 'Default', description: 'Adaptive style that fits the game theme' },
-  { id: 'neon', name: 'Neon Style', description: 'Vibrant neon colors with glowing effects' },
-  { id: 'colorful', name: 'Colorful', description: 'Bright and playful color palette' },
-  { id: 'mystical', name: 'Mystical', description: 'Dark and mysterious aesthetic' },
-  { id: 'retro', name: 'Retro Pixel', description: 'Classic 8-bit pixel art style' },
-  { id: 'minimalist', name: 'Minimalist', description: 'Clean and simple design' }
+  { id: 'default', name: 'Default',     description: 'Adaptive style that fits the specific games overall theme' },
+  { id: 'neon',     name: 'Neon Style', description: 'Vibrant neon colors with glowing effects' },
+  { id: 'colorful', name: 'Colorful',   description: 'Bright and playful color palette' },
+  { id: 'mystical', name: 'Mystical',   description: 'Dark and mysterious aesthetic' },
+  { id: 'retro',    name: 'Retro Pixel', description: 'Classic 8-bit pixel art style' },
+  { id: 'minimalist', name: 'Minimalist', description: 'Clean and simple design' },
 ];
+
+const designStylePrompts: Record<string, string> = {
+  default:
+    'Visual style: Choose colors, UI and effects that naturally fit this specific game idea. Avoid generic neon/cyberpunk unless the user explicitly asks for it.',
+  neon:
+    'Visual style: Use a dark, neon, cyberpunk aesthetic with glowing effects and strong contrast. Think synthwave arcade cabinet vibes.',
+  colorful:
+    'Visual style: Use a bright, playful color palette with bold shapes and high contrast. Make it feel fun, friendly, and energetic.',
+  mystical:
+    'Visual style: Use dark, moody colors with soft glows and magical accents. Think mysterious forests, arcane symbols, and subtle particle effects.',
+  retro:
+    'Visual style: Use pixel art or low-resolution graphics, limited color palettes, and chunky sprites. Emulate classic 8‑bit / 16‑bit arcade games.',
+  minimalist:
+    'Visual style: Use a clean, minimalist look with simple shapes, few colors, and lots of negative space. Prioritize clarity and readability.',
+};
 
 const emptyStateExamples = [
   "Create a space invaders game where enemies drop power-ups...",
@@ -131,13 +146,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, onSendMessage, onN
     if (!input.trim() || status === GameStatus.GENERATING) return;
 
     let fullPrompt = input.trim();
-    // Add design style to prompt if not default
-    if (selectedDesign.id === 'neon') {
-      fullPrompt += ` (Style: Use a dark, neon, cyberpunk aesthetic with glowing effects)`;
-    } else if (selectedDesign.id !== 'default') {
-      fullPrompt += ` (Style: ${selectedDesign.name})`;
+
+    const stylePrompt = designStylePrompts[selectedDesign.id];
+    if (stylePrompt) {
+      fullPrompt += ` (${stylePrompt})`;
     }
-    // Default style: AI chooses style fitting to the game
 
     onSendMessage(fullPrompt);
     setInput('');
