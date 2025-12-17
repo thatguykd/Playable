@@ -87,6 +87,12 @@ export const signup = async (email: string, password: string, name: string): Pro
     if (error) throw error;
     if (!data.user) throw new Error('Signup failed - no user returned');
 
+    // If email confirmation is required, Supabase will return a user but no active session.
+    // In that case, don't try to fetch the user profile yet - ask the user to confirm their email.
+    if (!data.session) {
+      throw new Error('Account created. Please check your email and click the confirmation link before signing in.');
+    }
+
     // Wait for the trigger to create the profile with retry logic
     // This handles race conditions where the database trigger hasn't completed yet
     const user = await getCurrentUserWithRetry();
